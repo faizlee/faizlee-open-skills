@@ -11,7 +11,7 @@ import re
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Any
 
 
 class IndexBuilder:
@@ -58,6 +58,12 @@ class IndexBuilder:
         # 检测类型（基于文件名）
         doc_type = self.detect_type(file_path)
 
+        # 计算权重
+        weight = self.calculate_weight(file_path, content, doc_type)
+
+        # 评估文档质量
+        quality, status, quality_factors = self.assess_document_quality(file_path, content)
+
         # 提取相关文档
         related = self.extract_related_documents(content)
 
@@ -68,38 +74,63 @@ class IndexBuilder:
             "module": module,
             "type": doc_type,
             "related_documents": related,
-            "quality": "medium",  # 默认质量
-            "status": "active",
+            "quality": quality,
+            "status": status,
+            "quality_factors": quality_factors,
             "created_date": datetime.fromtimestamp(file_path.stat().st_ctime).isoformat(),
             "last_updated": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(),
             "reference_count": 0,
-            "weight": 50
+            "weight": weight
         }
 
     def extract_keywords(self, content: str, title: str) -> List[str]:
-        """提取关键词"""
+        """提取高质量中文关键词"""
         keywords = set()
 
-        # 从标题提取
-        title_words = re.findall(r'[\w\u4e00-\u9fff]+', title)
+        # 停用词列表 - 无意义的词
+        stop_words = {
+            # 数字
+            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+            # 英文字母和单词
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+            'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+            'C', 'Q3', 'DON', 'Auto', 'Magic', 'Link', 'H1', 'H2', 'H3', 'E2E',
+            'API', 'UI', 'UX', 'CI', 'CD', 'OK', 'NG',
+            # 常见疑问词
+            '如何', '怎么', '什么', '哪些', '是否', '能否', '吗', '呢',
+            # 常见连接词
+            '的', '了', '和', '与', '或', '及', '等',
+            # 无意义标记
+            '选项', '步骤', '错误', '正确', '推荐', '建议', '注意', '说明', '概述',
+        }
+
+        # 从标题提取 - 只保留中文词汇（2字以上）
+        title_words = re.findall(r'[\u4e00-\u9fff]{2,}', title)
         keywords.update(title_words[:5])
 
         # 从 H2、H3 标题提取
         headings = re.findall(r'^#{2,3}\s+(.+)$', content, re.MULTILINE)
         for heading in headings:
-            words = re.findall(r'[\w\u4e00-\u9fff]+', heading)
-            keywords.update(words[:3])
+            # 过滤掉疑问句（包含吗、呢等疑问词）
+            if any(question_word in heading for question_word in ['吗', '呢', '如何', '怎么', '什么', '是否', '能否']):
+                continue
+            # 只保留中文词汇（2字以上）
+            words = re.findall(r'[\u4e00-\u9fff]{2,}', heading)
+            keywords.update(words[:5])
 
-        # 从文件内容提取高频词（简化版）
-        # TODO: 可以使用更复杂的 NLP 算法
+        # 过滤停用词
+        keywords = keywords - stop_words
 
-        return list(keywords)[:10]
+        # 转换为列表并排序（按长度降序，优先保留长关键词）
+        result = sorted(keywords, key=len, reverse=True)
+
+        return result[:8]  # 返回前 8 个高质量关键词
 
     def detect_module(self, file_path: Path, content: str) -> str:
-        """检测文档所属模块"""
+        """检测文档所属模块（增强版）"""
         path_str = str(file_path).lower()
 
-        # 基于文件路径判断
+        # 保持现有分类
         if "xiaohongshu" in path_str or "cover" in path_str:
             return "xiaohongshu-cover"
         elif "video" in path_str or "generator" in path_str:
@@ -114,6 +145,22 @@ class IndexBuilder:
             return "thumbnail"
         elif "progress" in path_str:
             return "progress-display"
+
+        # 新增细分分类
+        elif any(keyword in path_str for keyword in ['database', 'db', 'sql', 'migration', 'schema']):
+            return "database"
+        elif any(keyword in path_str for keyword in ['api', 'route', 'endpoint', 'rest']):
+            return "api"
+        elif any(keyword in path_str for keyword in ['deploy', 'deployment', 'production', 'vercel']):
+            return "deployment"
+        elif any(keyword in path_str for keyword in ['performance', 'optimization', 'optimize']):
+            return "performance"
+        elif any(keyword in path_str for keyword in ['troubleshoot', 'error', 'fix', 'debug', 'diagnosis']):
+            return "troubleshooting"
+        elif any(keyword in path_str for keyword in ['env', 'environment', 'config', 'setup']):
+            return "environment"
+        elif any(keyword in path_str for keyword in ['git', 'hook', 'commit']):
+            return "git"
         else:
             return "general"
 
@@ -137,6 +184,119 @@ class IndexBuilder:
             return "design"
         else:
             return "general"
+
+    def calculate_weight(self, file_path: Path, content: str, doc_type: str) -> int:
+        """计算文档权重"""
+        weight = 50  # 基础权重
+
+        # 根据文档类型调整
+        type_weights = {
+            'implementation': 20,  # 实现文档很重要
+            'guide': 15,
+            'design': 10,
+            'refactor': 10,
+            'test': 5,
+            'bug': 5,
+            'report': 0,
+            'general': 0,
+        }
+        weight += type_weights.get(doc_type, 0)
+
+        # 根据文件名判断重要性
+        name = file_path.name.lower()
+
+        # 核心实现文档（包含 implementation, summary, complete）
+        if any(keyword in name for keyword in ['implementation', 'summary', 'complete', 'final']):
+            weight += 15
+
+        # 快速参考文档（quick, quick-ref, guide）
+        if any(keyword in name for keyword in ['quick', 'guide', 'ref', 'tutorial']):
+            weight += 10
+
+        # 官方文档（README, CLAUDE, 官方指南）
+        if any(keyword in name for keyword in ['readme', 'claude', 'official']):
+            weight += 10
+
+        # 测试和报告通常权重较低
+        if 'test' in name and 'report' in name:
+            weight -= 5
+
+        # 检查文档完整性
+        if self.is_document_complete(content, file_path):
+            weight += 10
+
+        # 检查文档是否最近更新（30天内）
+        file_age_days = (datetime.now() - datetime.fromtimestamp(file_path.stat().st_mtime)).days
+        if file_age_days < 30:
+            weight += 5
+        elif file_age_days > 180:
+            weight -= 10
+
+        # 检查文档长度（太短可能不完整）
+        content_length = len(content)
+        if content_length < 500:
+            weight -= 10
+        elif content_length > 5000:
+            weight += 5
+
+        return max(20, min(weight, 100))  # 限制在 20-100 之间
+
+    def is_document_complete(self, content: str, file_path: Path) -> bool:
+        """检查文档是否完整"""
+        # 检查是否包含必要的章节
+        required_sections = ['#', '##']
+        return all(section in content for section in required_sections)
+
+    def assess_document_quality(self, file_path: Path, content: str) -> tuple:
+        """评估文档质量和状态"""
+
+        # 质量评分
+        quality_score = 0
+        quality_factors = []
+
+        # 检查文档结构
+        if content.count('##') >= 3:  # 至少3个小节
+            quality_score += 20
+            quality_factors.append("结构完整")
+
+        if '```' in content:  # 包含代码示例
+            quality_score += 20
+            quality_factors.append("有代码示例")
+
+        if content.count('![') >= 1 or content.count('- [x]') >= 1:  # 有图片或任务列表
+            quality_score += 15
+            quality_factors.append("有任务清单")
+
+        if len(content) > 2000:  # 内容充实
+            quality_score += 20
+            quality_factors.append("内容充实")
+
+        if any(keyword in content for keyword in ['## 概述', '## 总结', '## 结论']):
+            quality_score += 15
+            quality_factors.append("有总结概述")
+
+        if any(keyword in content for keyword in ['## 参考资料', '## 相关文档', '## 参考资源']):
+            quality_score += 10
+            quality_factors.append("有参考资料")
+
+        # 质量等级
+        if quality_score >= 80:
+            quality = "high"
+        elif quality_score >= 50:
+            quality = "medium"
+        else:
+            quality = "low"
+
+        # 时效性检查
+        file_age_days = (datetime.now() - datetime.fromtimestamp(file_path.stat().st_mtime)).days
+        if file_age_days > 365:
+            status = "deprecated"  # 超过1年
+        elif file_age_days > 180:
+            status = "needs_review"  # 超过6个月
+        else:
+            status = "active"
+
+        return quality, status, quality_factors
 
     def extract_related_documents(self, content: str) -> List[str]:
         """提取相关文档"""
@@ -209,11 +369,16 @@ class IndexBuilder:
                 for doc in sorted(docs, key=lambda x: x['weight'], reverse=True):
                     f.write(f"### {doc['title']}\n\n")
                     f.write(f"- **文件**: `{doc['file']}`\n")
-                    f.write(f"- **关键词**: {', '.join(doc['keywords'][:10])}\n")
+                    f.write(f"- **关键词**: {', '.join(doc['keywords'][:8])}\n")
                     f.write(f"- **类型**: {doc['type']}\n")
                     f.write(f"- **模块**: {doc['module']}\n")
                     f.write(f"- **权重**: {doc['weight']}\n")
+                    f.write(f"- **质量**: {doc['quality']}\n")
+                    f.write(f"- **状态**: {doc['status']}\n")
                     f.write(f"- **最后引用**: {doc['last_updated']}\n")
+
+                    if doc.get('quality_factors'):
+                        f.write(f"- **质量因素**: {', '.join(doc['quality_factors'])}\n")
 
                     if doc['related_documents']:
                         f.write(f"- **相关文档**: {', '.join(doc['related_documents'][:5])}\n")
