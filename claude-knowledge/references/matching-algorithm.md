@@ -1,45 +1,45 @@
-# Matching Algorithm
+# 匹配算法详解
 
-This document details the confidence scoring algorithm for matching documents to user questions.
+本文档详细说明用于匹配文档与用户问题的置信度评分算法。
 
-## Overview
+## 概述
 
-When candidate documents are found, the following checks are performed to determine if the solution is applicable:
+当找到候选文档后，执行以下检查来确定方案是否适用：
 
-1. **Context Match** (30 points) - Compare user context with document context
-2. **Time Validation** (20 points) - Check document recency
-3. **Condition Match** (30 points) - Verify prerequisites
-4. **Keyword Overlap** (20 points) - Calculate keyword similarity
+1. **上下文匹配**（30分）- 比较用户上下文与文档上下文
+2. **时间验证**（20分）- 检查文档时效性
+3. **条件匹配**（30分）- 验证前置条件
+4. **关键词重合度**（20分）- 计算关键词相似度
 
-**Total Score**: 0-100 points
+**总分**: 0-100分
 
-**Confidence Levels**:
-- **High** (≥70): Quote solution directly
-- **Medium** (50-69): Quote solution with verification prompt
-- **Low** (<50): Ask user or rethink
+**置信度等级**:
+- **高** (≥70): 直接引用解决方案
+- **中** (50-69): 引用解决方案并提示验证
+- **低** (<50): 询问用户或重新思考
 
 ---
 
-## 1. Context Match (30 points)
+## 1. 上下文匹配（30分）
 
-Compare the user's question context with the document's context.
+比较用户问题的上下文和文档的上下文。
 
 ```python
 def match_context(document: Dict, user_context: Dict) -> Tuple[int, Optional[str]]:
     score = 0
 
-    # Module match (10 points)
+    # 模块匹配（10分）
     if document.get("module") == user_context.get("module"):
         score += 10
 
-    # Tech stack match (10 points)
+    # 技术栈匹配（10分）
     doc_stack = set(document.get("tech_stack", []))
     user_stack = set(user_context.get("tech_stack", []))
 
     if user_stack.issubset(doc_stack):
         score += 10
 
-    # File path match (10 points)
+    # 文件路径匹配（10分）
     doc_files = document.get("related_files", [])
     user_files = user_context.get("files", [])
 
@@ -49,62 +49,62 @@ def match_context(document: Dict, user_context: Dict) -> Tuple[int, Optional[str
     return score, None
 ```
 
-**Scoring Breakdown**:
-- Module matches: +10 points
-- Tech stack matches: +10 points
-- File path matches: +10 points
+**评分细则**:
+- 模块匹配: +10分
+- 技术栈匹配: +10分
+- 文件路径匹配: +10分
 
 ---
 
-## 2. Time Validation (20 points)
+## 2. 时间验证（20分）
 
-Check the document's recency and warn if outdated.
+检查文档的时效性，对过时文档发出警告。
 
 ```python
 def check_time(document: Dict) -> Tuple[int, Optional[str]]:
     age_days = (current_date - document["last_updated"]).days
 
-    if age_days < 180:  # Less than 6 months
+    if age_days < 180:  # 少于6个月
         return 20, None
-    elif age_days < 365:  # 6-12 months
-        return 10, "⚠️ Document not updated in 6+ months, please verify"
-    else:  # More than 1 year
-        return 0, "⚠️ Document not updated in 1+ year, may be outdated"
+    elif age_days < 365:  # 6-12个月
+        return 10, "⚠️ 文档超过6个月未更新，请验证"
+    else:  # 超过1年
+        return 0, "⚠️ 文档超过1年未更新，可能已过时"
 ```
 
-**Scoring Breakdown**:
-- Less than 6 months: +20 points
-- 6-12 months: +10 points (with warning)
-- More than 1 year: 0 points (with warning)
+**评分细则**:
+- 少于6个月: +20分
+- 6-12个月: +10分（有警告）
+- 超过1年: 0分（有警告）
 
 ---
 
-## 3. Condition Match (30 points)
+## 3. 条件匹配（30分）
 
-Check if prerequisites are satisfied.
+检查前置条件是否满足。
 
 ```python
 def check_prerequisites(document: Dict, user_context: Dict) -> Tuple[int, Optional[str]]:
     doc_prereqs = document.get("prerequisites", [])
     user_features = user_context.get("available_features", [])
 
-    # Check if all prerequisites are available
+    # 检查所有前置条件是否可用
     for prereq in doc_prereqs:
         if prereq not in user_features:
-            return 0, f"❌ Prerequisite not met: {prereq}"
+            return 0, f"❌ 前置条件不满足: {prereq}"
 
     return 30, None
 ```
 
-**Scoring Breakdown**:
-- All prerequisites met: +30 points
-- Any prerequisite missing: 0 points (with error)
+**评分细则**:
+- 所有前置条件满足: +30分
+- 任何前置条件缺失: 0分（有错误提示）
 
 ---
 
-## 4. Keyword Overlap (20 points)
+## 4. 关键词重合度（20分）
 
-Calculate the overlap between document keywords and query keywords.
+计算文档关键词与查询关键词的重合度。
 
 ```python
 def calculate_overlap(doc_keywords: List[str], query_keywords: List[str]) -> int:
@@ -120,51 +120,51 @@ def calculate_overlap(doc_keywords: List[str], query_keywords: List[str]) -> int
     return int(overlap_ratio * 20)
 ```
 
-**Scoring Breakdown**:
-- All keywords match: +20 points
-- 75% match: +15 points
-- 50% match: +10 points
-- 25% match: +5 points
-- No match: 0 points
+**评分细则**:
+- 所有关键词匹配: +20分
+- 75%匹配: +15分
+- 50%匹配: +10分
+- 25%匹配: +5分
+- 无匹配: 0分
 
 ---
 
-## Confidence Scoring
+## 置信度计算
 
-Combine all scores to determine confidence level.
+综合所有评分确定置信度等级。
 
 ```python
 def calculate_confidence(document: Dict, user_context: Dict, query: str) -> Dict:
     scores = {}
     warnings = []
 
-    # Context match
+    # 上下文匹配
     context_score, context_warning = match_context(document, user_context)
     scores["context"] = context_score
     if context_warning:
         warnings.append(context_warning)
 
-    # Time validation
+    # 时间验证
     time_score, time_warning = check_time(document)
     scores["time"] = time_score
     if time_warning:
         warnings.append(time_warning)
 
-    # Condition match
+    # 条件匹配
     prereq_score, prereq_warning = check_prerequisites(document, user_context)
     scores["prerequisites"] = prereq_score
     if prereq_warning:
         warnings.append(prereq_warning)
 
-    # Keyword overlap
+    # 关键词重合度
     query_keywords = extract_keywords(query)
     keyword_score = calculate_overlap(document["keywords"], query_keywords)
     scores["keywords"] = keyword_score
 
-    # Total score
+    # 总分
     total_score = sum(scores.values())
 
-    # Determine confidence level
+    # 确定置信度等级
     if total_score >= 70:
         confidence = "high"
     elif total_score >= 50:
@@ -182,87 +182,87 @@ def calculate_confidence(document: Dict, user_context: Dict, query: str) -> Dict
 
 ---
 
-## Score Breakdown Examples
+## 评分示例
 
-### Example 1: High Confidence (92/100)
+### 示例 1: 高置信度（92/100）
 
-**Scenario**: Bug fix in the same module with recent documentation
+**场景**: 同模块的Bug修复，文档最近更新
 
 ```python
 {
-  "context": 30,      # Module matches + tech stack matches + file matches
-  "time": 20,         # Updated 2 weeks ago
-  "prerequisites": 30, # All prerequisites met
-  "keywords": 12,     # 60% keyword overlap
+  "context": 30,      # 模块匹配 + 技术栈匹配 + 文件匹配
+  "time": 20,         # 2周前更新
+  "prerequisites": 30, # 所有前置条件满足
+  "keywords": 12,     # 60%关键词重合
   "total": 92,
   "confidence": "high"
 }
 ```
 
-**Action**: Quote solution directly
+**操作**: 直接引用解决方案
 
 ---
 
-### Example 2: Medium Confidence (65/100)
+### 示例 2: 中置信度（65/100）
 
-**Scenario**: Feature implementation with outdated documentation
+**场景**: 功能实现，文档过时
 
 ```python
 {
-  "context": 20,      # Module matches
-  "time": 10,         # Updated 8 months ago (warning)
-  "prerequisites": 30, # All prerequisites met
-  "keywords": 5,      # 25% keyword overlap
+  "context": 20,      # 模块匹配
+  "time": 10,         # 8个月前更新（警告）
+  "prerequisites": 30, # 所有前置条件满足
+  "keywords": 5,      # 25%关键词重合
   "total": 65,
   "confidence": "medium",
   "warnings": [
-    "⚠️ Document not updated in 6+ months, please verify"
+    "⚠️ 文档超过6个月未更新，请验证"
   ]
 }
 ```
 
-**Action**: Quote solution with verification prompt
+**操作**: 引用解决方案并提示验证
 
 ---
 
-### Example 3: Low Confidence (35/100)
+### 示例 3: 低置信度（45/100）
 
-**Scenario**: Bug fix in different module with old documentation
+**场景**: 不同模块的Bug修复，文档过时
 
 ```python
 {
-  "context": 10,      # Only tech stack matches
-  "time": 0,          # Updated 2 years ago (warning)
-  "prerequisites": 30, # All prerequisites met
-  "keywords": 5,      # 25% keyword overlap
+  "context": 10,      # 仅技术栈匹配
+  "time": 0,          # 2年前更新（警告）
+  "prerequisites": 30, # 所有前置条件满足
+  "keywords": 5,      # 25%关键词重合
   "total": 45,
   "confidence": "low",
   "warnings": [
-    "⚠️ Document not updated in 1+ year, may be outdated"
+    "⚠️ 文档超过1年未更新，可能已过时"
   ]
 }
 ```
 
-**Action**: Ask user or rethink
+**操作**: 询问用户或重新思考
 
 ---
 
-## Best Practices
+## 最佳实践
 
-1. **Context Matters**: Prioritize documents from the same module and with matching files
-2. **Time Sensitivity**: Always warn about outdated documents
-3. **Prerequisites**: Don't quote solutions if prerequisites aren't met
-4. **Keyword Quality**: Extract relevant keywords, not just any words
-5. **Threshold Tuning**: Adjust confidence thresholds based on your project's needs
-
----
-
-## Algorithm Complexity
-
-- **Time Complexity**: O(n) where n is the number of candidate documents
-- **Space Complexity**: O(1) for scoring, O(m) for storing results where m is the number of matches
+1. **上下文优先**: 优先选择来自相同模块且匹配文件的文档
+2. **时效敏感**: 始终警告过时文档
+3. **前置条件**: 前置条件不满足时不要引用解决方案
+4. **关键词质量**: 提取相关关键词，而非任意词语
+5. **阈值调优**: 根据项目需求调整置信度阈值
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: 2026-02-08
+## 算法复杂度
+
+- **时间复杂度**: O(n)，n为候选文档数量
+- **空间复杂度**: O(1)用于评分，O(m)用于存储结果，m为匹配数量
+
+---
+
+**版本**: 1.0.0
+**最后更新**: 2026-02-08

@@ -1,21 +1,21 @@
-# Search Modes
+# 搜索模式详解
 
-This document details the 5 search modes used by claude-knowledge.
+本文档详细说明项目知识索引系统的 5 种搜索模式。
 
-## Mode 1: Problem Log Match (Highest Priority)
+## 模式 1: 问题记录匹配（最高优先级）
 
-Directly search `problem-log.json` for identical or similar questions.
+直接在 `problem-log.json` 中查找完全相同或相似的问题。
 
-**Use Case**: User has asked similar questions before.
+**适用场景**: 用户之前问过类似问题
 
-**Example**:
+**示例**:
 ```
-Question: "Why is credit freezing failing?"
-Search: problem-log.json → Found PROB-001 (5 occurrences)
-Result: Return solution directly
+问题: "积分冻结失败"
+搜索: problem-log.json → 找到 PROB-001（已出现5次）
+结果: 直接返回解决方案
 ```
 
-**Implementation**:
+**实现逻辑**:
 ```python
 def search_problem_log(query: str) -> List[Dict]:
     normalized = normalize_query(query)
@@ -31,35 +31,35 @@ def search_problem_log(query: str) -> List[Dict]:
 
 ---
 
-## Mode 2: Keyword Search
+## 模式 2: 关键词搜索
 
-Extract keywords from the question and search in the `tags` field of `INDEX.md`.
+提取问题中的关键词，在 `INDEX.md` 的 tags 字段中查找。
 
-**Keyword Extraction**:
-- Module names (e.g., "auth", "video", "payment")
-- Tech stack (e.g., "React", "TypeScript", "PostgreSQL")
-- Error messages (e.g., "credit freeze", "test failed")
-- Feature names (e.g., "history", "state management")
+**关键词提取策略**:
+- 模块名（auth、video、payment等）
+- 技术栈（React、TypeScript、PostgreSQL等）
+- 错误信息（积分冻结、测试失败等）
+- 功能名（历史记录、状态管理等）
 
-**Example**:
+**示例**:
 ```
-Question: "How to implement history feature for cover generator?"
-Keywords: ["history", "cover", "implement"]
-Search: INDEX.md → Match by tags
-Result: cover-history-implementation.md
+问题: "如何实现历史记录功能？"
+关键词: ["历史", "记录", "实现"]
+搜索: INDEX.md → 按关键词匹配
+结果: history-implementation.md
 ```
 
-**Implementation**:
+**实现逻辑**:
 ```python
 def extract_keywords(query: str) -> List[str]:
     keywords = []
 
-    # Extract module names
+    # 提取模块名
     for module in config["modules"]:
         if module.lower() in query.lower():
             keywords.extend(config["modules"][module]["keywords"])
 
-    # Extract tech stack terms
+    # 提取技术栈术语
     tech_terms = ["react", "typescript", "nextjs", "postgresql", "drizzle"]
     keywords.extend([t for t in tech_terms if t.lower() in query.lower()])
 
@@ -82,26 +82,26 @@ def search_by_keywords(keywords: List[str]) -> List[Dict]:
 
 ---
 
-## Mode 3: Module Classification
+## 模式 3: 模块分类搜索
 
-Search by functional module.
+按功能模块分类搜索。
 
-**Module Categories**:
-- `auth` - Authentication system
-- `video` - Video generation
-- `payment` - Payment & billing
-- `testing` - Testing related
-- `refactor` - Refactoring docs
+**模块分类**:
+- `auth` - 认证系统
+- `video` - 视频生成
+- `payment` - 支付计费
+- `testing` - 测试相关
+- `refactor` - 重构文档
 
-**Example**:
+**示例**:
 ```
-Question: "How does the credit system work in video generator?"
-Module: video
-Search: INDEX.md → Search in video module
-Result: video-credit-system.md
+问题: "视频生成的积分系统如何工作？"
+模块: video
+搜索: INDEX.md → 在 video 模块下查找
+结果: video-credit-system.md
 ```
 
-**Implementation**:
+**实现逻辑**:
 ```python
 def detect_module(query: str) -> Optional[str]:
     query_lower = query.lower()
@@ -127,27 +127,27 @@ def search_by_module(module: str) -> List[Dict]:
 
 ---
 
-## Mode 4: Type Classification
+## 模式 4: 问题类型搜索
 
-Search by document type.
+按文档类型搜索。
 
-**Type Categories**:
-- `bug` - Bug fixes
-- `feature` - Feature implementation
-- `refactor` - Code refactoring
-- `test` - Testing docs
-- `guide` - Usage guides
-- `report` - Test reports
+**类型分类**:
+- `bug` - Bug 修复
+- `feature` - 功能实现
+- `refactor` - 代码重构
+- `test` - 测试文档
+- `guide` - 使用指南
+- `report` - 测试报告
 
-**Example**:
+**示例**:
 ```
-Question: "Why are mobile tests failing?"
-Type: test + report
-Search: INDEX.md → Search in test type
-Result: mobile-responsive-test-report-2026-02-07.md
+问题: "移动端测试为什么失败？"
+类型: test + report
+搜索: INDEX.md → 在 test 类型下查找
+结果: mobile-responsive-test-report-2026-02-07.md
 ```
 
-**Implementation**:
+**实现逻辑**:
 ```python
 def detect_type(query: str) -> Optional[str]:
     query_lower = query.lower()
@@ -172,19 +172,19 @@ def search_by_type(doc_type: str) -> List[Dict]:
 
 ---
 
-## Mode 5: Related Documents
+## 模式 5: 关联搜索
 
-After finding documents, recursively search their `related_documents`.
+找到文档后，递归查找其 `related_documents`。
 
-**Example**:
+**示例**:
 ```
-Question: "How is state management designed?"
-Search: cover-implementation.md
-Related: related_documents → [state-management.md, zustand-store.md]
-Result: Return all related documents
+问题: "状态管理是如何设计的？"
+搜索: cover-implementation.md
+关联: related_documents → [state-management.md, zustand-store.md]
+结果: 返回所有相关文档
 ```
 
-**Implementation**:
+**实现逻辑**:
 ```python
 def get_related_documents(document: Dict, depth: int = 1) -> List[Dict]:
     if depth <= 0:
@@ -195,7 +195,7 @@ def get_related_documents(document: Dict, depth: int = 1) -> List[Dict]:
         ref_doc = find_document_by_path(ref)
         if ref_doc:
             related.append(ref_doc)
-            # Recursive search
+            # 递归搜索
             related.extend(get_related_documents(ref_doc, depth - 1))
 
     return related
@@ -203,45 +203,45 @@ def get_related_documents(document: Dict, depth: int = 1) -> List[Dict]:
 
 ---
 
-## Composite Search
+## 复合搜索
 
-Multiple search modes are used simultaneously, results are merged and ranked.
+多个搜索模式同时使用，结果合并后排序。
 
 ```python
 def search(query: str, context: Dict = None) -> Dict[str, Any]:
     results = []
 
-    # Mode 1: Problem log match (highest priority)
+    # 模式 1: 问题记录匹配（最高优先级）
     problem_results = search_problem_log(query)
     results.extend(problem_results)
 
-    # Mode 2: Keyword search
+    # 模式 2: 关键词搜索
     keywords = extract_keywords(query)
     keyword_results = search_by_keywords(keywords)
     results.extend(keyword_results)
 
-    # Mode 3: Module classification
+    # 模式 3: 模块分类
     module = detect_module(query)
     if module:
         module_results = search_by_module(module)
         results.extend(module_results)
 
-    # Mode 4: Type search
+    # 模式 4: 类型搜索
     doc_type = detect_type(query)
     if doc_type:
         type_results = search_by_type(doc_type)
         results.extend(type_results)
 
-    # Mode 5: Related documents
+    # 模式 5: 关联文档
     for doc in results:
         related = get_related_documents(doc, depth=1)
         results.extend(related)
 
-    # Deduplicate and rank
+    # 去重并排序
     results = deduplicate(results)
     results = rank_results(results, query)
 
-    # Check quality
+    # 质量检查
     for result in results:
         warnings = check_quality(result)
         if warnings:
@@ -255,15 +255,15 @@ def search(query: str, context: Dict = None) -> Dict[str, Any]:
 
 ---
 
-## Best Practices
+## 最佳实践
 
-1. **Prioritize Problem Log**: Always check problem-log.json first
-2. **Extract Relevant Keywords**: Avoid over-matching with generic terms
-3. **Module Detection**: Use context clues to detect the right module
-4. **Type Classification**: Combine multiple types for better results
-5. **Recursive Related Search**: Limit depth to avoid infinite loops
+1. **优先问题日志**: 总是先检查 problem-log.json
+2. **提取相关关键词**: 避免用通用词过度匹配
+3. **模块检测**: 使用上下文线索检测正确模块
+4. **类型分类**: 结合多种类型获得更好结果
+5. **递归关联搜索**: 限制深度避免无限循环
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: 2026-02-08
+**版本**: 1.0.0
+**最后更新**: 2026-02-08

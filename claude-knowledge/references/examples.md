@@ -1,38 +1,38 @@
-# Working Examples
+# 工作流程示例
 
-This document provides practical examples of how claude-knowledge works in real scenarios.
+本文档提供项目知识索引系统在实际场景中的工作流程示例。
 
-## Example 1: Bug Fix Question
+## 示例 1: Bug 修复问题
 
-### User Question
+### 用户提问
 
-> "Why is credit freezing failing in the cover generator?"
+> "积分冻结失败"
 
-### Search Flow
+### 搜索流程
 
-1. **Problem Log Match**
+1. **问题记录匹配**
    ```
-   Search: problem-log.json
-   Found: PROB-001 (5 occurrences)
-   Question: "小红书封面生成器积分冻结失败"
-   First seen: 2026-02-05
-   Last seen: 2026-02-07
-   ```
-
-2. **Return Solution**
-   ```
-   Document: xiaohongshu-cover-implementation.md
-   Section: "积分冻结"
-   Confidence: high
+   搜索: problem-log.json
+   找到: PROB-001（5次出现）
+   问题: "积分冻结失败"
+   首次出现: 2026-02-05
+   最后出现: 2026-02-07
    ```
 
-3. **Verification**
-   - ✅ Context: Same module (xiaohongshu-cover)
-   - ✅ Time: Updated 1 day ago
-   - ✅ Prerequisites: All met
-   - ✅ Keywords: ["credit", "freeze", "cover"] → 100% match
+2. **返回解决方案**
+   ```
+   文档: implementation.md
+   章节: "积分冻结"
+   置信度: high
+   ```
 
-4. **Confidence Score**
+3. **验证**
+   - ✅ 上下文: 同一模块
+   - ✅ 时间: 1天前更新
+   - ✅ 前置条件: 全部满足
+   - ✅ 关键词: ["积分", "冻结"] → 100%匹配
+
+4. **置信度评分**
    ```python
    {
      "context": 30,
@@ -44,17 +44,17 @@ This document provides practical examples of how claude-knowledge works in real 
    }
    ```
 
-5. **Action**: Quote solution directly
+5. **操作**: 直接引用解决方案
 
-### Update Records
+### 更新记录
 
 ```json
 {
-  "occurrence_count": 6,  // Increased from 5
+  "occurrence_count": 6,  // 从5增加到6
   "last_seen": "2026-02-08",
   "solutions": [
     {
-      "document": "xiaohongshu-cover-implementation.md",
+      "document": "implementation.md",
       "section": "积分冻结",
       "confidence": "high",
       "success_count": 13,
@@ -64,58 +64,58 @@ This document provides practical examples of how claude-knowledge works in real 
 }
 ```
 
-### Document Weight Update
+### 文档权重更新
 
 ```python
-document["reference_count"] += 1  // Now 123
+document["reference_count"] += 1  // 现在是123
 document["last_referenced"] = "2026-02-08"
 document["weight"] = calculate_weight(document)
-// Result: 85 → 90
+// 结果: 85 → 90
 ```
 
 ---
 
-## Example 2: New Feature Question
+## 示例 2: 新功能询问
 
-### User Question
+### 用户提问
 
-> "How to implement history feature for cover generator?"
+> "如何实现历史记录功能？"
 
-### Search Flow
+### 搜索流程
 
-1. **Problem Log Match**
+1. **问题记录匹配**
    ```
-   Search: problem-log.json
-   Found: No exact match
-   ```
-
-2. **Keyword Search**
-   ```
-   Keywords extracted: ["history", "cover", "implement"]
-   Search: INDEX.md → Match by tags
-   Found: xiaohongshu-cover-history-implementation.md
+   搜索: problem-log.json
+   结果: 无完全匹配
    ```
 
-3. **Module Classification**
+2. **关键词搜索**
    ```
-   Module: xiaohongshu-cover
-   Search: INDEX.md → In xiaohongshu-cover module
-   Found: xiaohongshu-cover-history-implementation.md
-   ```
-
-4. **Return Solution**
-   ```
-   Document: xiaohongshu-cover-history-implementation.md
-   Type: [implementation, guide]
+   提取关键词: ["历史", "记录", "实现"]
+   搜索: INDEX.md → 按标签匹配
+   找到: history-implementation.md
    ```
 
-5. **Verification**
-   - ✅ Context: Same module
-   - ✅ Time: Updated 3 weeks ago
-   - ✅ Type: Implementation guide
-   - ✅ Keywords: ["history", "cover"] → 66% match
+3. **模块分类**
+   ```
+   模块: 对应功能模块
+   搜索: INDEX.md → 在该模块下查找
+   找到: history-implementation.md
+   ```
 
-6. **Confidence Score**
+4. **返回解决方案**
+   ```
+   文档: history-implementation.md
+   类型: [implementation, guide]
+   ```
+
+5. **验证**
+   - ✅ 上下文: 同一模块
+   - ✅ 时间: 3周前更新
+   - ✅ 类型: 实现指南
+   - ✅ 关键词: ["历史", "记录"] → 66%匹配
+
+6. **置信度评分**
    ```python
    {
      "context": 30,
@@ -127,24 +127,24 @@ document["weight"] = calculate_weight(document)
    }
    ```
 
-7. **Action**: Quote implementation guide
+7. **操作**: 引用实现指南
 
-### Create New Problem Record
+### 创建新问题记录
 
 ```json
 {
   "id": "PROB-XXX",
-  "question": "How to implement history feature for cover generator?",
-  "normalized": "history feature implementation cover generator",
+  "question": "如何实现历史记录功能？",
+  "normalized": "history feature implementation",
   "first_seen": "2026-02-08",
   "last_seen": "2026-02-08",
   "occurrence_count": 1,
-  "module": "xiaohongshu-cover",
+  "module": "feature-module",
   "type": "feature",
   "solutions": [
     {
-      "document": "xiaohongshu-cover-history-implementation.md",
-      "section": "Implementation",
+      "document": "history-implementation.md",
+      "section": "实现",
       "confidence": "high"
     }
   ],
@@ -154,43 +154,42 @@ document["weight"] = calculate_weight(document)
 
 ---
 
-## Example 3: Quality Issue Question
+## 示例 3: 质量问题处理
 
-### User Question
+### 用户提问
 
-> "Why do mobile tests only have 15.4% pass rate?"
+> "移动端测试为什么只有15.4%通过率？"
 
-### Search Flow
+### 搜索流程
 
-1. **Problem Log Match**
+1. **问题记录匹配**
    ```
-   Search: problem-log.json
-   Found: PROB-002 (3 occurrences)
-   Question: "移动端测试通过率低"
-   First seen: 2026-02-06
-   ```
-
-2. **Return Solution**
-   ```
-   Document: mobile-responsive-test-report-2026-02-07.md
-   Type: [test, report]
+   搜索: problem-log.json
+   找到: PROB-002（3次出现）
+   问题: "移动端测试通过率低"
    ```
 
-3. **Verification**
-   - ✅ Context: Testing module
-   - ✅ Time: Updated 1 day ago
-   - ✅ Type: Test report
-   - ⚠️ Quality check needed
-
-4. **Quality Check**
+2. **返回解决方案**
    ```
-   Document metadata:
-   - Quality mark: "low (selector issue, functionality works)"
-   - Status: active
-   - Success rate: N/A (test report, not solution)
+   文档: mobile-test-report-2026-02-07.md
+   类型: [test, report]
    ```
 
-5. **Confidence Score**
+3. **验证**
+   - ✅ 上下文: 测试模块
+   - ✅ 时间: 1天前更新
+   - ✅ 类型: 测试报告
+   - ⚠️ 质量检查需要
+
+4. **质量检查**
+   ```
+   文档元数据:
+   - 质量标记: "low（选择器问题，功能正常）"
+   - 状态: active
+   - 成功率: N/A（测试报告，非解决方案）
+   ```
+
+5. **置信度评分**
    ```python
    {
      "context": 30,
@@ -202,168 +201,45 @@ document["weight"] = calculate_weight(document)
    }
    ```
 
-6. **Action**: Quote solution with explanation
+6. **操作**: 引用解决方案并说明
 
-### Response Example
+### 回应示例
 
 ```
-Found solution in mobile-responsive-test-report-2026-02-07.md:
+在 mobile-test-report-2026-02-07.md 中找到解决方案：
 
-📊 Test Results:
-- Pass rate: 15.4% (4/26 tests)
-- Root cause: Selector issues, not functional problems
-- Functionality: ✅ Working correctly
-- Recommendation: Update selectors for mobile testing
+📊 测试结果:
+- 通过率: 15.4% (4/26 测试)
+- 根本原因: 选择器问题，非功能性问题
+- 功能状态: ✅ 正常工作
+- 建议: 更新移动端测试选择器
 
-⚠️ Note: The low pass rate is due to selector configuration issues,
-not functional problems. All features work correctly on mobile.
+⚠️ 注意: 低通过率是由于选择器配置问题，
+非功能问题。所有功能在移动端正常工作。
 ```
 
 ---
 
-## Example 4: No Match Scenario
+## 关键要点
 
-### User Question
-
-> "How to integrate Web3 wallet payment?"
-
-### Search Flow
-
-1. **Problem Log Match**
-   ```
-   Search: problem-log.json
-   Found: No match
-   ```
-
-2. **Keyword Search**
-   ```
-   Keywords: ["web3", "wallet", "payment", "integration"]
-   Search: INDEX.md → No match
-   ```
-
-3. **Module Classification**
-   ```
-   Module: payment
-   Search: INDEX.md → In payment module
-   Found: [stripe-integration.md, creem-payment.md]
-   ⚠️ But no Web3-related docs
-   ```
-
-4. **Confidence Score**
-   ```python
-   {
-     "context": 10,      # Only module matches
-     "time": 20,         # Payment docs are recent
-     "prerequisites": 30,
-     "keywords": 0,      # No Web3 keywords match
-     "total": 60,
-     "confidence": "medium",
-     "warnings": [
-       "⚠️ No exact match found. Related payment docs available."
-     ]
-   }
-   ```
-
-5. **Action**: Record new problem, design solution
-
-### Create New Problem Record
-
-```json
-{
-  "id": "PROB-XXX",
-  "question": "How to integrate Web3 wallet payment?",
-  "normalized": "web3 wallet payment integration",
-  "first_seen": "2026-02-08",
-  "last_seen": "2026-02-08",
-  "occurrence_count": 1,
-  "module": "payment",
-  "type": "feature",
-  "solutions": [],  // Empty - needs to be implemented
-  "status": "pending"
-}
-```
-
-### Design Solution
-
-After implementing the feature:
-1. Create new document: `web3-payment-integration.md`
-2. Add to INDEX.md
-3. Update problem record with solution
-4. Link to related documents
+1. **高置信度 (≥70)**: 直接引用，更新记录
+2. **中置信度 (50-69)**: 引用并验证警告
+3. **低置信度 (<50)**: 询问用户，记录新问题
+4. **无匹配**: 设计解决方案，实现后添加到索引
 
 ---
 
-## Example 5: Related Documents Search
+## 成功指标
 
-### User Question
+追踪以下指标以改进系统：
 
-> "How is state management designed for cover generator?"
-
-### Search Flow
-
-1. **Problem Log Match**
-   ```
-   Search: problem-log.json
-   Found: No exact match
-   ```
-
-2. **Keyword Search**
-   ```
-   Keywords: ["state", "management", "cover"]
-   Search: INDEX.md → Match by tags
-   Found: xiaohongshu-cover-implementation.md
-   ```
-
-3. **Related Documents Search**
-   ```
-   Base: xiaohongshu-cover-implementation.md
-   Related: related_documents → [
-     "xiaohongshu-cover-state-management.md",
-     "xiaohongshu-cover-zustand-store.md"
-   ]
-
-   Recursive search:
-   - xiaohongshu-cover-state-management.md
-     → related: ["zustand-patterns.md", "state-architecture.md"]
-   - xiaohongshu-cover-zustand-store.md
-     → related: ["zustand-best-practices.md"]
-   ```
-
-4. **Return All Related**
-   ```
-   Found 5 related documents:
-   1. xiaohongshu-cover-implementation.md (base)
-   2. xiaohongshu-cover-state-management.md
-   3. xiaohongshu-cover-zustand-store.md
-   4. zustand-patterns.md
-   5. state-architecture.md
-   ```
-
-5. **Action**: Provide comprehensive overview with all related docs
+- **解决方案成功率**: 引用的解决方案中解决问题的百分比
+- **用户满意度**: 用户反馈评分（1-5星）
+- **问题频率**: 出现≥5次的问题需要重构
+- **文档质量**: 每个文档的平均成功率
+- **响应时间**: 查找和引用解决方案的时间
 
 ---
 
-## Key Takeaways
-
-1. **High Confidence (≥70)**: Quote directly, update records
-2. **Medium Confidence (50-69)**: Quote with verification warnings
-3. **Low Confidence (<50)**: Ask user, record new problem
-4. **No Match**: Design solution, implement, add to index
-5. **Related Docs**: Always include related documents for context
-
----
-
-## Success Metrics
-
-Track these metrics to improve the system:
-
-- **Solution Success Rate**: % of quoted solutions that solved the problem
-- **User Satisfaction**: User feedback ratings (1-5 stars)
-- **Problem Frequency**: Problems occurring ≥5 times need refactoring
-- **Document Quality**: Average success rate per document
-- **Response Time**: Time to find and quote solution
-
----
-
-**Version**: 1.0.0
-**Last Updated**: 2026-02-08
+**版本**: 1.0.0
+**最后更新**: 2026-02-08
