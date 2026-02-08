@@ -33,9 +33,9 @@ class IndexBuilder:
 
     def scan_documents(self) -> List[Path]:
         """扫描所有 Markdown 文档"""
-        print(f"🔍 扫描文档目录: {self.docs_dir}")
+        print(f"[Search] Scanning documents directory: {self.docs_dir}")
         md_files = list(self.docs_dir.glob("**/*.md"))
-        print(f"✅ 找到 {len(md_files)} 个文档")
+        print(f"[OK] Found {len(md_files)} documents")
         return md_files
 
     def extract_metadata(self, file_path: Path) -> Dict[str, Any]:
@@ -153,23 +153,23 @@ class IndexBuilder:
 
     def build_index(self):
         """构建索引"""
-        print("\n🏗️  开始构建索引...")
+        print("\n[Build] Starting to build index...")
 
         # 扫描文档
         md_files = self.scan_documents()
 
         # 提取元数据
-        print("\n📄 提取文档元数据...")
+        print("\n[Metadata] Extracting document metadata...")
         for md_file in md_files:
             try:
                 metadata = self.extract_metadata(md_file)
                 self.documents.append(metadata)
-                print(f"  ✓ {metadata['file']}")
+                print(f"  [OK] {metadata['file']}")
             except Exception as e:
-                print(f"  ✗ {md_file}: {e}")
+                print(f"  [FAIL] {md_file}: {e}")
 
         # 按模块分类
-        print("\n📂 按模块分类...")
+        print("\n[Classify] Classifying by modules...")
         modules = {}
         for doc in self.documents:
             module = doc['module']
@@ -178,17 +178,17 @@ class IndexBuilder:
             modules[module].append(doc)
 
         # 生成 INDEX.md
-        print("\n📝 生成 INDEX.md...")
+        print("\n[Write] Generating INDEX.md...")
         self.generate_index_md(modules)
 
         # 生成 problem-log.json
-        print("\n📝 生成 problem-log.json...")
+        print("\n[Write] Generating problem-log.json...")
         self.generate_problem_log()
 
-        print("\n✅ 索引构建完成！")
-        print(f"   - 文档总数: {len(self.documents)}")
-        print(f"   - 模块数量: {len(modules)}")
-        print(f"   - 索引位置: {self.index_dir}")
+        print("\n[OK] Index build completed!")
+        print(f"   - Total documents: {len(self.documents)}")
+        print(f"   - Module count: {len(modules)}")
+        print(f"   - Index location: {self.index_dir}")
 
     def generate_index_md(self, modules: Dict[str, List[Dict]]):
         """生成 INDEX.md"""
@@ -220,7 +220,7 @@ class IndexBuilder:
 
                     f.write("\n")
 
-        print(f"✓ 索引已保存到: {index_file}")
+        print(f"[OK] Index saved to: {index_file}")
 
     def generate_problem_log(self):
         """生成 problem-log.json"""
@@ -236,7 +236,7 @@ class IndexBuilder:
         with open(problem_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        print(f"✓ 问题记录已保存到: {problem_file}")
+        print(f"[OK] Problem log saved to: {problem_file}")
 
 
 def main():
