@@ -1,14 +1,20 @@
 # Claude Knowledge
 
 > **智能项目知识索引系统** - 让 Claude Code 更聪明，避免重复解决问题
+>
+> **Intelligent Project Knowledge Indexing System** - Make Claude Code smarter by avoiding repetitive problem-solving
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Skill Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/faizlee/faizlee-open-skills)
 [![Platform](https://img.shields.io/badge/Platform-Claude%20Code-informational.svg)](https://claude.ai/code)
 
+**[English](#english) | [简体中文](#简体中文)**
+
 ---
 
-## 🎯 核心功能
+## 简体中文
+
+### 🎯 核心功能
 
 **问题**: AI 经常重复回答相同的问题，浪费时间，缺乏智能关联和检索机制
 
@@ -32,11 +38,9 @@
 | **文档查询** | 手动搜索文档 | 智能索引秒级响应 |
 | **知识积累** | 遗忘经验 | 持续学习，越用越聪明 |
 
----
+### 📦 安装
 
-## 📦 安装
-
-### 方式 1: 克隆仓库（推荐）
+#### 方式 1: 克隆仓库（推荐）
 
 ```bash
 # 克隆仓库
@@ -49,7 +53,7 @@ cp -r faizlee-open-skills/claude-knowledge ~/.claude/skills/
 ln -s $(pwd)/faizlee-open-skills/claude-knowledge ~/.claude/skills/claude-knowledge
 ```
 
-### 方式 2: 手动安装
+#### 方式 2: 手动安装
 
 ```bash
 # 1. 创建技能目录
@@ -65,11 +69,9 @@ curl -O https://raw.githubusercontent.com/faizlee/faizlee-open-skills/main/claud
 curl -O https://raw.githubusercontent.com/faizlee/faizlee-open-skills/main/claude-knowledge/scripts/search_index.py
 ```
 
----
+### 🚀 快速开始
 
-## 🚀 快速开始
-
-### 1. 初始化索引
+#### 1. 初始化索引
 
 首次使用时，技能会自动检测 `docs/` 目录并提示创建索引：
 
@@ -92,7 +94,7 @@ mkdir -p docs
   3. 跳过 - 不创建索引
 ```
 
-### 2. 开始使用
+#### 2. 开始使用
 
 初始化后，直接提问即可：
 
@@ -101,11 +103,9 @@ mkdir -p docs
 Claude: [搜索索引 → 找到 PROB-001（5次出现）→ 直接引用解决方案]
 ```
 
----
+### 💡 使用场景
 
-## 💡 使用场景
-
-### 场景 1: Bug 修复
+#### 场景 1: Bug 修复
 
 ```
 用户问题: "积分冻结失败"
@@ -123,7 +123,7 @@ Claude: [搜索索引 → 找到 PROB-001（5次出现）→ 直接引用解决�
 - implementation.md.weight += 5
 ```
 
-### 场景 2: 新功能询问
+#### 场景 2: 新功能询问
 
 ```
 用户问题: "如何实现历史记录功能？"
@@ -142,25 +142,9 @@ Claude: [搜索索引 → 找到 PROB-001（5次出现）→ 直接引用解决�
 - 关联到 history-implementation.md
 ```
 
-### 场景 3: 质量问题处理
+### 🔧 触发条件
 
-```
-用户问题: "移动端测试为什么只有15.4%通过率？"
-
-搜索流程:
-1. 问题记录匹配 → 找到 PROB-002（3次出现）
-2. 返回解决方案: mobile-test-report-2026-02-07.md
-3. 验证: 上下文✓、时间✓
-4. **质量检查**: 文档标记 "选择器问题，功能正常"
-5. 置信度: 88/100 (高)
-6. ✅ 引用解决方案并说明原因
-```
-
----
-
-## 🔧 触发条件
-
-### 自动触发场景
+#### 自动触发场景
 
 技能会在以下场景自动触发：
 
@@ -176,161 +160,27 @@ Claude: [搜索索引 → 找到 PROB-001（5次出现）→ 直接引用解决�
 - Architecture, integration, deployment, testing
 - Debugging, optimization, refactoring
 
-### 前置条件
+### ❓ 常见问题
 
-- 项目根目录存在 `docs/knowledge-index/` 目录
-- 首次使用会自动创建索引
-
----
-
-## 📂 索引结构
-
-```
-docs/knowledge-index/
-├── INDEX.md              # 文档索引（结构化）
-└── problem-log.json      # 问题记录（错题集）
-```
-
-### INDEX.md 格式
-
-```markdown
-## auth
-
-### 核心实现
-- **文件**: `auth-implementation.md`
-- **关键词**: [登录, 注册, session, token]
-- **类型**: [implementation, guide, production]
-- **模块**: auth
-- **权重**: 85
-- **最后引用**: 2026-02-07
-- **相关文档**: [session-management.md, auth-middleware.md]
-```
-
-### problem-log.json 格式
-
-```json
-{
-  "version": "1.0",
-  "last_updated": "2026-02-08",
-  "problems": [
-    {
-      "id": "PROB-001",
-      "question": "积分冻结失败",
-      "normalized": "credit freeze failed",
-      "first_seen": "2026-02-05",
-      "last_seen": "2026-02-07",
-      "occurrence_count": 5,
-      "module": "payment",
-      "type": "bug",
-      "solutions": [
-        {
-          "document": "implementation.md",
-          "section": "积分冻结",
-          "confidence": "high"
-        }
-      ],
-      "status": "active",
-      "needs_refactor": false
-    }
-  ]
-}
-```
-
----
-
-## 🛠️ 高级用法
-
-### 手动构建索引
-
-```bash
-python scripts/build_index.py
-```
-
-### 搜索索引
-
-```bash
-python scripts/search_index.py "关键词"
-```
-
-### 更新权重
-
-```bash
-python scripts/update_weights.py
-```
-
-### 配置文件
-
-项目根目录创建 `.knowledge-index-config.json`:
-
-```json
-{
-  "project_name": "MyProject",
-  "docs_dir": "docs/",
-  "index_dir": "docs/knowledge-index/",
-  "modules": {
-    "auth": {
-      "keywords": ["auth", "login", "session"],
-      "patterns": ["auth-*.md"]
-    },
-    "video": {
-      "keywords": ["video", "generate", "ai"],
-      "patterns": ["video-*.md", "generator-*.md"]
-    }
-  },
-  "auto_update": true,
-  "quality_threshold": 0.7
-}
-```
-
----
-
-## ❓ 常见问题
-
-### Q: 索引不存在怎么办？
+#### Q: 索引不存在怎么办？
 
 **A**: 选择"自动创建"选项，技能会自动扫描并构建索引
 
-### Q: 搜索返回空结果？
+#### Q: 搜索返回空结果？
 
 **A**: 可能原因：
 1. 关键词不准确 → 尝试其他关键词
 2. 文档未索引 → 运行 `build_index.py` 重建索引
 3. 文档被删除 → 检查文档状态
 
-### Q: 技能没有自动触发？
+#### Q: 技能没有自动触发？
 
 **A**: 检查：
 1. 技能是否正确安装到 `~/.claude/skills/`
 2. SKILL.md 中的触发词是否包含你的问题关键词
 3. 项目是否有 `docs/knowledge-index/` 目录
 
----
-
-## 📊 技术细节
-
-### 搜索模式
-
-1. **问题记录匹配**（最高优先级）- 查找已解决的问题
-2. **关键词搜索** - 提取关键词在 tags 中查找
-3. **模块分类** - 按功能模块分类搜索
-4. **类型搜索** - 按 Bug/Feature/Refactor 等类型搜索
-5. **关联搜索** - 递归查找相关文档
-
-### 智能匹配算法
-
-- **上下文匹配**（30分）- 比较模块、技术栈、文件路径
-- **时间验证**（20分）- 检查文档时效性
-- **条件匹配**（30分）- 验证前置条件
-- **关键词重合度**（20分）- 计算关键词相似度
-
-**置信度**:
-- **高** (≥70): 直接引用解决方案
-- **中** (50-69): 引用并提示验证
-- **低** (<50): 询问用户或重新思考
-
----
-
-## 🤝 贡献指南
+### 🤝 贡献指南
 
 欢迎贡献！请遵循以下步骤：
 
@@ -340,49 +190,210 @@ python scripts/update_weights.py
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 开启 Pull Request
 
-### 开发指南
-
-```bash
-# 克隆仓库
-git clone https://github.com/faizlee/faizlee-open-skills.git
-
-# 进入技能目录
-cd faizlee-open-skills/claude-knowledge
-
-# 编辑技能
-vim SKILL.md
-
-# 测试技能
-python tests/test_skill.py
-
-# 提交更改
-git add .
-git commit -m "feat: update skill"
-git push
-```
-
----
-
-## 📝 许可证
+### 📝 许可证
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ---
 
-## 🌟 致谢
+## English
 
-- [Claude Code](https://claude.ai/code) - AI 编程助手
-- 所有贡献者
+### 🎯 Core Features
+
+**Problem**: AI often repeats answers to the same questions, wasting time without intelligent association and retrieval mechanisms
+
+**Solution**: Claude Knowledge is an intelligent indexing system that searches existing solutions before answering any question
+
+### Key Features
+
+- ✅ **5 Search Modes** - Problem log, keywords, module, type, related documents
+- ✅ **Smart Matching** - Context, time, conditions, keyword confidence scoring
+- ✅ **Continuous Learning** - Auto-record, dynamic weights, problem frequency tracking
+- ✅ **Quality Assurance** - 3-layer checks, time decay, user feedback loop
+- ✅ **Cross-project Support** - Independent index per project
+- ✅ **Bilingual** - 24 trigger scenarios, global coverage
+
+### Before & After
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| **Bug Fix** | Re-analyze code | Quote historical solution directly |
+| **Feature Implementation** | Design from scratch | Quote existing implementation |
+| **Documentation Query** | Manual search | Intelligent index, instant response |
+| **Knowledge Accumulation** | Forget experience | Continuous learning, smarter over time |
+
+### 📦 Installation
+
+#### Method 1: Clone Repository (Recommended)
+
+```bash
+# Clone repository
+git clone https://github.com/faizlee/faizlee-open-skills.git
+
+# Copy skill to local
+cp -r faizlee-open-skills/claude-knowledge ~/.claude/skills/
+
+# Or use symlink (recommended)
+ln -s $(pwd)/faizlee-open-skills/claude-knowledge ~/.claude/skills/claude-knowledge
+```
+
+#### Method 2: Manual Installation
+
+```bash
+# 1. Create skill directory
+mkdir -p ~/.claude/skills/claude-knowledge
+
+# 2. Download SKILL.md
+curl -o ~/.claude/skills/claude-knowledge/SKILL.md \
+  https://raw.githubusercontent.com/faizlee/faizlee/open-skills/main/claude-knowledge/SKILL.md
+
+# 3. Download scripts (optional)
+cd ~/.claude/skills/claude-knowledge
+curl -O https://raw.githubusercontent.com/faizlee/faizlee/open-skills/main/claude-knowledge/scripts/build_index.py
+curl -O https://raw.githubusercontent.com/faizlee/faizlee/open-skills/main/claude-knowledge/scripts/search_index.py
+```
+
+### 🚀 Quick Start
+
+#### 1. Initialize Index
+
+On first use, the skill will automatically detect the `docs/` directory and prompt to create an index:
+
+```bash
+cd /path/to/your/project
+
+# Ensure docs/ directory exists
+mkdir -p docs
+
+# Ask in Claude Code, skill will auto-initialize
+```
+
+**Prompt Example**:
+```
+🤖 Detected 104 documents in project. Create knowledge index?
+
+Options:
+  1. Auto-create (Recommended) - 5-10 seconds
+  2. Manual config - Customize modules and keywords
+  3. Skip - Don't create index
+```
+
+#### 2. Start Using
+
+After initialization, just ask questions:
+
+```
+You: "Credit freezing failed"
+Claude: [Search index → Found PROB-001 (5 occurrences) → Quote solution directly]
+```
+
+### 💡 Use Cases
+
+#### Scenario 1: Bug Fix
+
+```
+User Question: "Credit freezing failed"
+
+Search Flow:
+1. Problem log match → Found PROB-001 (5 occurrences)
+2. Return solution: implementation.md#credit-freeze
+3. Verify: Context✓, Time✓, Conditions✓
+4. Confidence: 92/100 (high)
+5. ✅ Quote solution directly
+
+Update:
+- PROB-001.occurrence_count += 1 (becomes 6)
+- implementation.md.reference_count += 1
+- implementation.md.weight += 5
+```
+
+#### Scenario 2: New Feature Question
+
+```
+User Question: "How to implement history feature?"
+
+Search Flow:
+1. Problem log match → No match
+2. Keyword search → "history", "record"
+3. Module classification → Corresponding module
+4. Found: history-implementation.md
+5. Verify: Context✓, implementation guide
+6. Confidence: 85/100 (high)
+7. ✅ Quote implementation guide
+
+Update:
+- Create new problem record PROB-XXX
+- Link to history-implementation.md
+```
+
+### 🔧 Trigger Conditions
+
+#### Auto-Trigger Scenarios
+
+The skill will auto-trigger in these scenarios:
+
+**Chinese Triggers**:
+- 项目问题、技术文档、实现方案
+- Bug修复、功能开发、代码审查
+- 架构设计、集成部署、配置环境
+- 测试调试、性能优化、重构改进
+
+**English Triggers**:
+- Project issues, technical docs, implementation
+- Bug fix, feature development, code review
+- Architecture, integration, deployment, testing
+- Debugging, optimization, refactoring
+
+### ❓ FAQ
+
+#### Q: What if index doesn't exist?
+
+**A**: Select "Auto-create" option, skill will automatically scan and build index
+
+#### Q: Search returns empty results?
+
+**A**: Possible reasons:
+1. Inaccurate keywords → Try other keywords
+2. Document not indexed → Run `build_index.py` to rebuild
+3. Document deleted → Check document status
+
+#### Q: Skill not auto-triggering?
+
+**A**: Check:
+1. Skill correctly installed in `~/.claude/skills/`
+2. Trigger words in SKILL.md match your question keywords
+3. Project has `docs/knowledge-index/` directory
+
+### 🤝 Contributing
+
+Contributions welcome! Please follow these steps:
+
+1. Fork this repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+### 📝 License
+
+MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-## 📮 联系方式
+## 🌟 Acknowledgments
+
+- [Claude Code](https://claude.ai/code) - AI programming assistant
+- All contributors
+
+---
+
+## 📮 Contact
 
 - GitHub: [@faizlee](https://github.com/faizlee)
-- Issues: [提交问题](https://github.com/faizlee/faizlee-open-skills/issues)
+- Issues: [Submit issues](https://github.com/faizlee/faizlee-open-skills/issues)
 
 ---
 
-**仓库版本**: 1.0.0
-**最后更新**: 2026-02-08
-**维护者**: Faizlee & Claude
+**Repository Version**: 1.0.0
+**Last Updated**: 2026-02-08
+**Maintainer**: Faizlee & Claude
