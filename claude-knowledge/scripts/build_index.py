@@ -102,6 +102,14 @@ class IndexBuilder:
             '的', '了', '和', '与', '或', '及', '等',
             # 无意义标记
             '选项', '步骤', '错误', '正确', '推荐', '建议', '注意', '说明', '概述',
+            # 泛化词汇 (新增)
+            '项目', '相关', '配置', '系统', '功能', '模块', '文件', '代码',
+            '使用', '实现', '添加', '创建', '生成', '更新', '修改', '处理',
+            '需要', '可以', '应该', '必须', '每个', '所有', '多个', '单个',
+            '主要', '重要', '关键', '核心', '基本', '详细', '完整', '简单',
+            '第一', '第二', '第三', '最后', '接下来', '然后', '之后',
+            '数据', '内容', '信息', '结果', '问题', '方法', '方式', '形式',
+            '音频', '音乐', '视频', '图片', '图像', '文本', '文字',
         }
 
         # 从标题提取 - 只保留中文词汇（2字以上）
@@ -121,13 +129,32 @@ class IndexBuilder:
         # 过滤停用词
         keywords = keywords - stop_words
 
+        # 过滤包含动词的关键词（检查是否包含常见动词）
+        verb_patterns = [
+            r'.*需要$',
+            r'.*使用$',
+            r'.*实现$',
+            r'.*添加$',
+            r'.*创建$',
+            r'.*生成$',
+            r'.*更新$',
+            r'.*修改$',
+            r'.*处理$',
+            r'.*配置$',
+            r'每个.*$',
+            r'.*中都$',
+            r'^.*中使用$',
+            r'^.*相关$',
+        ]
+        keywords = {kw for kw in keywords if not any(re.match(pattern, kw) for pattern in verb_patterns)}
+
         # 转换为列表并排序（按长度降序，优先保留长关键词）
         result = sorted(keywords, key=len, reverse=True)
 
         return result[:8]  # 返回前 8 个高质量关键词
 
     def detect_module(self, file_path: Path, content: str) -> str:
-        """检测文档所属模块（增强版）"""
+        """检测文档所属模块（增强版 v2）"""
         path_str = str(file_path).lower()
 
         # 保持现有分类
@@ -161,6 +188,22 @@ class IndexBuilder:
             return "environment"
         elif any(keyword in path_str for keyword in ['git', 'hook', 'commit']):
             return "git"
+
+        # 新增更多细分分类
+        elif any(keyword in path_str for keyword in ['report', 'summary', 'summary-', '-summary']):
+            # 进一步细分报告类型
+            if 'phase' in path_str or 'progress' in path_str:
+                return "progress-report"
+            elif 'test' in path_str:
+                return "testing"
+            else:
+                return "general"
+        elif any(keyword in path_str for keyword in ['doc', 'docs', 'index', 'readme', 'guide']):
+            # 文档相关
+            if 'knowledge' in path_str or 'index' in path_str:
+                return "documentation"
+            else:
+                return "general"
         else:
             return "general"
 
