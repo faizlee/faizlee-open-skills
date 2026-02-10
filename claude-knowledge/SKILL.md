@@ -1,20 +1,61 @@
 ---
 name: claude-knowledge
 description: |
-  【最高优先级 - 总是先检查】项目知识索引系统
-  Intelligent project knowledge indexing system with 5-mode search. ALWAYS search existing solutions before answering.
+  【最高优先级 - 强制触发】项目知识索引系统
 
-  ⚠️ 强制触发 / Triggers (中英双语):
-  项目问题、技术文档、实现方案、Bug修复、功能开发、代码审查、架构设计、集成部署、配置环境、测试调试、性能优化、重构改进
-  Project issues, technical docs, implementation, bug fix, feature development, code review, architecture, integration, deployment, testing, debugging, optimization, refactoring
+  ⚠️ 必须先执行：在回答任何问题、执行任何任务前，必须先搜索项目知识索引！
+  ⚠️ MANDATORY: Search project knowledge index BEFORE answering any question or task!
 
-  前置条件 / Prerequisite: docs/knowledge-index/ 存在 / exists
+  🚨 强制触发词（中英文，覆盖所有场景）：
 
-  工作流程 / Workflow: 搜索索引 → 找到?直接引用 : 记录问题 → 持续学习
-  Search index → Found? Quote solution : Record problem → Continuous learning
+  【问题类 - Question】
+  问题、提问、询问、怎么、如何、为什么、what、how、why、help、assist、explain
 
-  功能 / Features: 5种搜索模式、智能匹配(上下文/时间/条件/关键词)、持续学习(自动记录/动态权重/问题频率)、质量保证(三层检查)、跨项目支持
-  5-mode search, smart matching (context/time/conditions/keywords), continuous learning (auto-record/dynamic weights/frequency), quality assurance (3-layer checks), cross-project
+  【任务类 - Task】
+  修复、解决、处理、实现、开发、添加、删除、更新、修改、隐藏、显示、测试、部署
+  fix, solve, resolve, implement, develop, add, delete, update, modify, hide, show, test, deploy
+
+  【功能类 - Feature】
+  功能、特性、登录、注册、认证、支付、视频、生成、管理、配置、环境
+  feature, login, register, auth, payment, video, generate, management, config, environment
+
+  【代码类 - Code】
+  代码、组件、页面、API、数据库、架构、设计、重构、优化、性能、bug
+  code, component, page, API, database, architecture, design, refactor, optimize, performance, bug
+
+  【文档类 - Doc】
+  文档、搜索、查找、索引、知识、记录、历史
+  docs, search, find, index, knowledge, record, history, memory
+
+  【操作类 - Action】
+  我要、我想、帮我、能否、可以、让我、想要、是否、有没有、有没有、在哪
+  I want, I need, help me, can you, please, let me, is there, where
+
+  【触发器 - Trigger】
+  遇到、现在、开始、首先、第一步、当前
+  encounter, now, start, begin, first step, current
+
+  【场景类 - Scenario】
+  后台、前台、用户端、管理端、测试环境、生产环境、本地、远程
+  backend, frontend, user, admin, test env, production, local, remote
+
+  🔴 绝对优先级（最高）：
+  - 任何问题：先搜索索引，再回答
+  - 任何任务：先搜索索引，再执行
+  - 任何疑问：先搜索索引，再回答
+  - 任何操作：先搜索索引，再操作
+
+  📍 前置条件：docs/knowledge-index/ 存在
+
+  🔄 工作流（强制执行）：
+  1. 搜索索引（INDEX.md + problem-log.json）
+  2. 找到方案？→ 直接引用（不要重新思考）
+  3. 找不到？→ 记录新问题 → 解决后添加到索引
+
+  ✨ 功能：5种搜索、智能匹配、持续学习、问题频率追踪、质量保证
+
+  🎯 目标：避免重复工作、积累知识、提高效率
+  Goal: Avoid duplication, accumulate knowledge, improve efficiency
 ---
 
 # 项目知识索引系统
