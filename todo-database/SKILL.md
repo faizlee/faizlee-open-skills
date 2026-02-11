@@ -3,44 +3,48 @@ name: todo-database
 description: |
   【优先触发 - 任务管理】通用项目级持久化 TODO 管理系统
 
-  🚨 强制触发词（中英文，覆盖所有场景）：
+  🚨 扩展触发词（中英文，120+词汇）：
 
-  【任务添加 - Add Task】
-  添加、新建、创建、记录、加入、增加、写到、保存到
-  add, create, new, record, save, add to, put in
+  【任务添加 - Add Task】(24个词汇)
+  添加、新建、创建、记录、加入、增加、写到、保存到、记住、别忘了、别忘了
+  add, create, new, record, save, add to, put in, remember, don't forget
   + TODO/待办/任务/task/todo/task
 
-  【任务操作 - Task Action】
-  更新、修改、标记、完成、解决、关闭、删除、移除
-  update, modify, mark, complete, resolve, close, delete, remove
-  + TODO/任务/task
+  【任务相关 - Task Related】(40个词汇) ⭐NEW
+  任务、待办、事项、计划、规划、安排、想法、需求、功能、改进、优化、重构
+  问题、bug、错误、修复、解决、实现、完成、处理、跟进、追踪、管理
+  task, todo, item, plan, planning, schedule, idea, requirement, feature, improve, optimize, refactor
+  problem, bug, error, fix, resolve, implement, complete, handle, follow up, track, manage
 
-  【任务查看 - View Task】
-  查看、显示、列出、有什么、有哪些、所有
-  view, show, list, what, all, display
-  + TODO/待办/任务/task/todo list
+  【代码标记 - Code Markers】(8个词汇)
+  TODO, FIXME, HACK, XXX, NOTE, BUG, TEMP, WORKAROUND
 
-  【询问式 - Question】
-  有没有、是否存在、在哪儿、位置在哪、状态如何
-  is there, where, status, how about, what about
-  + TODO/任务/task
+  【询问式 - Question】(12个词汇)
+  有没有、是否存在、在哪儿、位置在哪、状态如何、有哪些、还有什么
+  is there, where, status, how about, what about, what else, any more
 
-  【描述式 - Description】
-  把这个、把这个任务、需要做、应该做、记住
-  this, this task, need to, should, remember
-  + 添加/记录/保存 (add/record/save)
+  【行动式 - Action】(20个词汇)
+  需要做、应该做、要做、准备做、计划做、打算、考虑、评估、分析、整理
+  need to, should, must, going to, plan to, intend, consider, evaluate, analyze, organize
+
+  【回顾式 - Review】(16个词汇)
+  回顾、检查、扫描、查找、搜索、过滤、统计、报告、总结、整理
+  review, check, scan, find, search, filter, statistics, report, summarize, organize
 
   🔴 绝对优先级（最高）：
-  - 任何"添加/记录" TODO 的请求：立即触发
-  - 任何"查看/列出" TODO 的请求：立即触发
-  - 任何"更新/标记" TODO 的请求：立即触发
+  - 任何"添加/记录"任务/TODO的请求：立即触发
+  - 任何"查看/列出"任务/TODO的请求：立即触发
+  - 任何"更新/标记"任务/TODO的请求：立即触发
+  - 任何提到"计划/规划/安排"的请求：立即触发
 
   📌 核心功能：
   - 添加、更新、搜索、删除 TODO
   - 支持优先级 P0-P3
-  - 支持类型 Bug/Feature/Refactor/Test/Doc/UI
+  - 支持类型 Bug/Feature/Refactor/Test/Doc/UI/Config/Optimize
   - 状态追踪（待办/进行中/已完成/已拒绝/已延期）
   - Git 持久化，对话重启不丢失
+  - 初始化检查清单（防止遗漏）
+  - 多来源任务整合（代码/文档/AI对话）
 
   📍 适用所有项目：Web、移动端、Unity、Python、通用项目
 ---
@@ -51,36 +55,83 @@ description: |
 
 通用的项目级持久化 TODO 管理系统，通过 Git 追踪的 Markdown 文档存储所有 TODO，确保在 AI 对话重启后依然保留所有有意义的任务和想法。
 
-## 🎯 触发关键词
+## 🎯 触发关键词 (120+词汇)
 
 **直接触发关键词 (任一出现即触发)**:
 
+### 任务添加类 (24个词汇)
 | 中文关键词 | 英文关键词 | 动作 |
 |-----------|-----------|------|
 | "添加 TODO" | "add TODO" | 添加新任务 |
 | "添加到 TODO 数据库" | "add to TODO database" | 添加新任务 |
 | "记录到 TODO" | "record to TODO" | 添加新任务 |
 | "新建 TODO" | "create new TODO" | 添加新任务 |
-| "更新 TODO" | "update TODO" | 更新状态 |
-| "修改 TODO 状态" | "change TODO status" | 更新状态 |
-| "标记 TODO" | "mark TODO" | 更新状态 |
-| "完成 TODO" | "complete TODO" | 标记完成 |
-| "解决 TODO" | "resolve TODO" | 标记完成 |
-| "关闭 TODO" | "close TODO" | 标记完成 |
-| "查看 TODO" | "view TODO" | 显示列表 |
-| "TODO 列表" | "TODO list" | 显示列表 |
-| "待办事项" | "pending tasks" | 显示列表 |
-| "待办任务" | "backlog" | 显示列表 |
-| "TODO 数据库" | "TODO database" | 显示信息 |
-| "项目 TODO" | "project TODO" | 显示信息 |
-| "搜索 TODO" | "search TODO" | 搜索任务 |
-| "查找 TODO" | "find TODO" | 搜索任务 |
-| "过滤 TODO" | "filter TODO" | 过滤任务 |
-| "TODO 统计" | "TODO statistics" | 生成报告 |
-| "TODO 报告" | "TODO report" | 生成报告 |
-| "生成 TODO 报告" | "generate TODO report" | 生成报告 |
 | "添加任务" | "add task" | 添加新任务 |
 | "记录任务" | "record task" | 添加新任务 |
+| "记住这个" | "remember this" | 添加新任务 |
+| "别忘了" | "don't forget" | 添加新任务 |
+
+### 任务相关类 (40个词汇) ⭐NEW
+| 类别 | 词汇 | 示例 |
+|------|------|------|
+| **任务名词** | 任务、待办、事项、item | "有什么任务？" |
+| | task, todo, item | "What tasks?" |
+| **计划类** | 计划、规划、安排、schedule | "有什么计划？" |
+| | plan, planning | "Any plans?" |
+| **想法类** | 想法、需求、功能、idea | "有个新想法" |
+| | requirement, feature | "New feature idea" |
+| **改进类** | 改进、优化、重构、improve | "需要改进" |
+| | optimize, refactor | "Need optimization" |
+| **问题类** | 问题、bug、错误、problem | "发现一个问题" |
+| | bug, error, issue | "Found a bug" |
+| **行动类** | 修复、解决、实现、fix | "需要修复" |
+| | resolve, implement | "Need to fix" |
+| **管理类** | 追踪、管理、整理、organize | "整理任务" |
+| | track, manage | "Track tasks" |
+
+### 代码标记类 (8个词汇)
+| 标记 | 类型 | 优先级 |
+|------|------|--------|
+| `//TODO:` | 待办任务 | P1-P3 |
+| `//FIXME:` | 需要修复 | P0-P1 |
+| `//HACK:` | 临时方案 | P2 |
+| `//XXX:` | 重要提醒 | P0-P1 |
+| `//NOTE:` | 注释说明 | P3 |
+| `//BUG:` | 已知bug | P0-P1 |
+| `//TEMP:` | 临时代码 | P2 |
+| `//WORKAROUND:` | 变通方案 | P1-P2 |
+
+### 询问类 (12个词汇)
+| 中文 | 英文 | 用途 |
+|------|------|------|
+| "有没有 TODO" | "is there TODO" | 查询存在性 |
+| "有哪些任务" | "what tasks" | 列出任务 |
+| "还有什么" | "what else" | 追加查询 |
+| "状态如何" | "how about status" | 状态查询 |
+
+### 行动类 (20个词汇)
+| 中文 | 英文 | 示例 |
+|------|------|------|
+| 需要做 | need to | "需要做测试" |
+| 应该做 | should | "应该重构" |
+| 要做 | must | "必须修复" |
+| 准备做 | going to | "准备实现" |
+| 计划做 | plan to | "计划添加" |
+| 打算 | intend | "打算优化" |
+| 考虑 | consider | "考虑引入" |
+| 评估 | evaluate | "评估方案" |
+| 分析 | analyze | "分析问题" |
+| 整理 | organize | "整理代码" |
+
+### 回顾类 (16个词汇)
+| 中文 | 英文 | 用途 |
+|------|------|------|
+| 回顾 | review | "回顾任务" |
+| 检查 | check | "检查TODO" |
+| 扫描 | scan | "扫描代码TODO" |
+| 统计 | statistics | "生成统计" |
+| 报告 | report | "生成报告" |
+| 总结 | summarize | "总结任务" |
 
 **场景触发 (结合上下文)**:
 
@@ -88,21 +139,36 @@ description: |
    - "发现一个 bug" → 创建 Bug 类型 TODO
    - "有个问题需要修复" → 创建 Bug 类型 TODO
    - "这里有个错误" → 创建 Bug 类型 TODO
+   - "有个bug" → 创建 Bug 类型 TODO ⭐NEW
 
 2. **功能想法时**:
    - "应该添加这个功能" → 创建 Feature 类型 TODO
    - "可以改进一下" → 创建 Feature 类型 TODO
    - "有个新想法" → 创建 Feature 类型 TODO
+   - "有个计划" → 创建 Feature 类型 TODO ⭐NEW
 
 3. **代码审查时**:
    - "这里需要重构" → 创建 Refactor 类型 TODO
    - "代码有坏味道" → 创建 Refactor 类型 TODO
    - "需要优化" → 创建 Refactor 类型 TODO
+   - "需要改进" → 创建 Refactor 类型 TODO ⭐NEW
 
 4. **测试相关**:
    - "测试覆盖不够" → 创建 Test 类型 TODO
    - "需要写测试" → 创建 Test 类型 TODO
    - "缺少测试" → 创建 Test 类型 TODO
+
+5. **规划相关** ⭐NEW:
+   - "有什么计划" → 列出所有计划任务
+   - "有什么安排" → 列出所有安排
+   - "有什么规划" → 列出所有规划
+   - "整理任务" → 整理和分类任务
+
+6. **多来源整合** ⭐NEW:
+   - "扫描代码TODO" → 扫描所有//TODO注释
+   - "检查文档TODO" → 扫描所有文档
+   - "回顾AI对话TODO" → 检查对话历史
+   - "全面扫描" → 执行所有扫描
 
 ## 📁 文件结构
 
@@ -632,7 +698,324 @@ grep -B 5 "状态.*待办" PROJECT_TODO_DATABASE.md
 
 ---
 
-**版本**: v2.0
+## 🚀 初始化流程 (防止遗漏) ⭐NEW
+
+### 核心原则
+
+> **"所有TODO类型的任务都必须进入统一的TODO数据库"**
+
+### 什么是"TODO类型的任务"？
+
+不仅仅是代码注释中的 `//TODO:`，还包括：
+
+1. **代码TODO注释** (18个)
+   - `//TODO:`, `//FIXME:`, `//HACK:`, `//XXX:`
+
+2. **重构任务** (3个大型)
+   - 文件拆分、架构调整
+
+3. **功能需求** (未记录)
+   - 新功能想法、改进建议
+
+4. **Bug修复** (部分在数据库)
+   - 已知bug、用户反馈
+
+5. **技术债务** (部分记录)
+   - 代码坏味道、性能问题
+
+6. **文档任务** (未记录)
+   - 文档补充、示例代码
+
+7. **测试任务** (部分记录)
+   - 测试覆盖、测试用例
+
+8. **配置任务** (未记录)
+   - 配置表、环境配置
+
+9. **优化任务** (部分记录)
+   - 性能优化、内存优化
+
+10. **规划事项** (未记录)
+    - 计划中的工作、未来规划
+
+### TODO来源检查清单 (10类)
+
+#### ✅ 第1类: 代码中的TODO/FIXME注释
+
+**位置**: `Assets/GAS/Scripts/PVP/` 下的所有 `.cs` 文件
+
+**查找命令**:
+```bash
+grep -rn "TODO\|FIXME\|HACK\|XXX" Assets/GAS/Scripts/PVP/ --include="*.cs"
+```
+
+**当前状态**: ✅ 已整理 (18个)
+
+#### ✅ 第2类: 重构规划文档
+
+**位置**: 项目根目录的 `*REFACTOR*.md` 文件
+
+**查找命令**:
+```bash
+ls -1 *REFACTOR*.md *REFACTOR*.txt 2>/dev/null
+```
+
+**当前状态**: ✅ 已整理 (3个大型重构任务)
+
+#### ⚠️ 第3类: 测试相关文档
+
+**位置**: `*TEST*.md` 文件
+
+**查找命令**:
+```bash
+ls -1 *TEST*.md 2>/dev/null | head -20
+```
+
+**当前状态**: ⚠️ 部分未检查
+
+**需要检查的文档**:
+- [ ] AI_TDD_QUICKSTART.md
+- [ ] FARM_PVP_TDD_STRATEGY.md
+- [ ] FARM_PVP_TDD_FINAL_SUMMARY.md
+- [ ] FARMPVP_TESTING_BIBLE.md
+- [ ] EditMode测试覆盖分析.md
+- [ ] PvpTaskTests_Report.md
+- [ ] P0_*_REPORT.md (多个P0测试报告)
+
+#### ⚠️ 第4类: 技术债务文档
+
+**位置**: `*TECH*DEBT*.md`, `*DEBT*.md` 文件
+
+**查找命令**:
+```bash
+ls -1 *TECH*.md *DEBT*.md 2>/dev/null
+```
+
+**当前状态**: ⚠️ 未系统整理
+
+#### ⚠️ 第5类: 项目管理文档
+
+**位置**: `PROJECT_*.md`, `*PLAN*.md` 文件
+
+**查找命令**:
+```bash
+ls -1 PROJECT*.md *PLAN*.md 2>/dev/null
+```
+
+**当前状态**: ⚠️ 未检查
+
+#### ❌ 第6类: Bug报告和Issue
+
+**位置**: GitHub Issues, Bug报告文档
+
+**查找命令**:
+```bash
+ls -1 *BUG*.md *ISSUE*.md *ERROR*.md 2>/dev/null
+```
+
+**当前状态**: ❌ 未系统整理
+
+#### ❌ 第7类: 功能需求文档
+
+**位置**: `*FEATURE*.md`, `*REQUIREMENT*.md` 文件
+
+**查找命令**:
+```bash
+ls -1 *FEATURE*.md *REQUIRE*.md 2>/dev/null
+```
+
+**当前状态**: ❌ 未整理
+
+#### ❌ 第8类: 会议和讨论记录
+
+**位置**: `*MEETING*.md`, `*DISCUSSION*.md` 文件
+
+**查找命令**:
+```bash
+ls -1 *MEETING*.md *DISCUSSION*.md 2>/dev/null
+```
+
+**当前状态**: ❌ 未整理
+
+#### ❌ 第9类: AI对话历史
+
+**位置**: Claude Code对话历史
+
+**查找方法**: 回顾最近的AI对话
+
+**当前状态**: ⚠️ 部分整理
+
+#### ❌ 第10类: 配置和环境设置
+
+**位置**: 配置文件、环境文档
+
+**查找命令**:
+```bash
+ls -1 *CONFIG*.md *SETUP*.md *ENV*.md 2>/dev/null
+```
+
+**当前状态**: ❌ 未整理
+
+### 全面扫描命令
+
+#### 代码TODO扫描
+
+```bash
+# 查找所有代码TODO
+grep -rn "TODO\|FIXME\|HACK\|XXX" Assets/GAS/Scripts/PVP/ --include="*.cs" | tee code_todo_scan.txt
+
+# 统计数量
+grep -rn "TODO\|FIXME\|HACK\|XXX" Assets/GAS/Scripts/PVP/ --include="*.cs" | wc -l
+```
+
+#### 文档TODO扫描
+
+```bash
+# 查找所有文档TODO
+grep -rn "待办\|TODO\|FIXME\|任务" *.md --include="*.md" | tee doc_todo_scan.txt
+
+# 统计数量
+grep -rn "待办\|TODO\|FIXME\|任务" *.md --include="*.md" | wc -l
+```
+
+#### 项目管理文档扫描
+
+```bash
+# 查找所有规划相关文档
+ls -1 *PLAN*.md *REFACTOR*.md *TODO*.md *STRATEGY*.md 2>/dev/null | tee planning_docs.txt
+
+# 检查每个文档
+for file in $(cat planning_docs.txt); do
+    echo "=== $file ==="
+    grep -i "待办\|任务\|TODO\|FIXME" "$file" | head -20
+done
+```
+
+### 防止遗漏的关键措施
+
+#### 1. 建立"TODO雷达"
+
+**任何提到"任务"的都要警惕**:
+
+触发词列表:
+- 任务、待办、事项
+- TODO、FIXME、HACK、XXX
+- 计划、规划、安排
+- 需要做、应该做、记得
+- 问题、bug、错误
+- 改进、优化、重构
+- 添加、实现、完成
+
+#### 2. 使用todo-database技能
+
+**每次发现任务时，立即调用**:
+
+```
+"添加到TODO数据库: XXX"
+"记录任务: XXX"
+"新建待办: XXX"
+```
+
+#### 3. 定期全面扫描
+
+**每周执行一次**:
+
+```bash
+# 代码TODO扫描
+bash scan_code_todos.sh
+
+# 文档TODO扫描
+bash scan_doc_todos.sh
+
+# 对比数据库
+bash compare_todos.sh
+```
+
+#### 4. 文档模板检查
+
+**所有新文档创建时检查是否包含TODO**:
+
+- [ ] 计划文档 → 提取任务
+- [ ] 需求文档 → 提取功能点
+- [ ] 会议记录 → 提取行动项
+- [ ] 测试报告 → 提取改进项
+
+#### 5. AI对话中主动询问
+
+**在AI对话结束前询问**:
+
+- "有没有遗漏的TODO？"
+- "还有哪些任务需要记录？"
+- "有没有提到什么计划？"
+
+### 初始化检查清单
+
+#### ✅ 已完成
+
+- [x] 代码TODO (18个)
+- [x] 重构任务 (3个)
+- [x] 创建UNIFIED_TODO_DATABASE.md
+- [x] 添加触发词扩展
+
+#### ⚠️ 待完成
+
+- [ ] 测试文档TODO扫描
+- [ ] 技术债务文档扫描
+- [ ] 项目管理文档扫描
+- [ ] Bug报告整理
+- [ ] 功能需求整理
+- [ ] AI对话历史回顾
+- [ ] 配置任务整理
+
+#### ❌ 未开始
+
+- [ ] 建立定期扫描脚本
+- [ ] 创建TODO提取工具
+- [ ] 建立TODO雷达意识
+- [ ] 团队培训
+
+### 下一步行动
+
+#### 立即行动 (今天)
+
+1. **扫描测试文档** (30分钟)
+   ```bash
+   grep -rn "待办\|TODO\|FIXME\|任务" *TEST*.md > test_todos.txt
+   ```
+
+2. **扫描项目管理文档** (15分钟)
+   ```bash
+   grep -rn "待办\|TODO\|FIXME\|任务" PROJECT*.md *PLAN*.md > project_todos.txt
+   ```
+
+3. **整理到数据库** (30分钟)
+   - 手动或使用todo-database技能
+   - 更新统计数据
+
+#### 本周行动
+
+1. **回顾AI对话历史** (1小时)
+   - 找出所有提到的任务
+   - 整理到数据库
+
+2. **检查技术债务文档** (30分钟)
+   - 提取技术债任务
+   - 整理到数据库
+
+3. **创建扫描脚本** (1小时)
+   - `scan_code_todos.sh`
+   - `scan_doc_todos.sh`
+   - `compare_todos.sh`
+
+#### 持续改进
+
+1. **每周执行一次全面扫描** (30分钟)
+2. **每次AI对话结束前询问TODO**
+3. **建立文档创建时的TODO检查流程**
+
+---
+
+**版本**: v2.1
 **创建**: 2026-02-05
-**更新**: 2026-02-07
+**更新**: 2026-02-11 (扩展触发词 + 初始化流程)
 **维护者**: Faizlee & Claude
