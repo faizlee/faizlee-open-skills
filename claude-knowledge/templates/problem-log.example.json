@@ -1,0 +1,152 @@
+{
+  "version": "1.1",
+  "last_updated": "2026-03-04T00:00:00",
+  "total_problems": 3,
+  "metadata": {
+    "project_name": "示例项目",
+    "team_size": "3-5人",
+    "tech_stack": ["Unity", "C#", "Git"],
+    "notes": "这是一个示例数据文件，展示如何使用错题集系统"
+  },
+  "problems": [
+    {
+      "id": "PROB-001",
+      "problem": "测试失败后如何快速定位问题？",
+      "category": "测试",
+      "severity": "high",
+      "occurrence_count": 5,
+      "first_seen": "2026-02-20",
+      "last_seen": "2026-02-27",
+      "needs_refactor": false,
+      "status": "resolved",
+      "solutions": [
+        {
+          "document": "TESTING_QUICK_REF.md",
+          "section": "快速测试流程",
+          "confidence": 95,
+          "hint": "运行测试前必做检查清单",
+          "verified": true
+        },
+        {
+          "document": "TESTING_VERIFICATION_PRINCIPLES.md",
+          "section": "5个检查点",
+          "confidence": 90,
+          "hint": "黄金法则：真实测试、测试优先级",
+          "verified": true
+        }
+      ],
+      "related_mistakes": ["#001"],
+      "tags": ["testing", "verification", "quality"]
+    },
+    {
+      "id": "PROB-002",
+      "problem": "编译错误如何自动检测？",
+      "category": "开发工具",
+      "severity": "medium",
+      "occurrence_count": 3,
+      "first_seen": "2026-02-10",
+      "last_seen": "2026-02-25",
+      "needs_refactor": false,
+      "status": "resolved",
+      "solutions": [
+        {
+          "document": "UNITY_MONITOR_GUIDE.md",
+          "section": "监控器配置",
+          "confidence": 92,
+          "hint": "启动监控器，5秒内检测编译错误",
+          "verified": true
+        },
+        {
+          "document": "GIT_HOOK_GUIDE.md",
+          "section": "Pre-Commit验证",
+          "confidence": 88,
+          "hint": "Git Hook自动验证编译",
+          "verified": true
+        }
+      ],
+      "related_mistakes": ["#002"],
+      "tags": ["automation", "compile", "monitoring"]
+    },
+    {
+      "id": "PROB-003",
+      "problem": "如何避免配置错误导致的问题？",
+      "category": "配置管理",
+      "severity": "medium",
+      "occurrence_count": 4,
+      "first_seen": "2026-02-15",
+      "last_seen": "2026-02-26",
+      "needs_refactor": false,
+      "status": "monitoring",
+      "solutions": [
+        {
+          "document": "CONFIG_VALIDATION_GUIDE.md",
+          "section": "配置验证流程",
+          "confidence": 90,
+          "hint": "使用配置验证脚本",
+          "verified": true
+        },
+        {
+          "document": "CONFIG_TEMPLATES.md",
+          "section": "标准配置模板",
+          "confidence": 85,
+          "hint": "使用经过验证的配置模板",
+          "verified": false
+        }
+      ],
+      "related_mistakes": ["#003"],
+      "tags": ["configuration", "validation", "templates"]
+    }
+  ],
+  "frequent_problems": [
+    {
+      "id": "PROB-001",
+      "problem": "测试失败后如何快速定位问题？",
+      "occurrence_count": 5,
+      "trend": "decreasing",
+      "note": "经过改进，出现频率下降"
+    }
+  ],
+  "categories": {
+    "测试": {
+      "count": 1,
+      "resolved": 1,
+      "pending": 0,
+      "monitoring": 0
+    },
+    "开发工具": {
+      "count": 1,
+      "resolved": 1,
+      "pending": 0,
+      "monitoring": 0
+    },
+    "配置管理": {
+      "count": 1,
+      "resolved": 0,
+      "pending": 0,
+      "monitoring": 1
+    }
+  },
+  "statistics": {
+    "total_problems": 3,
+    "resolved": 2,
+    "pending": 0,
+    "monitoring": 1,
+    "resolution_rate": 0.67,
+    "avg_occurrence": 4.0,
+    "most_frequent_category": "测试, 开发工具, 配置管理"
+  },
+  "improvements": [
+    {
+      "date": "2026-02-20",
+      "problem_id": "PROB-001",
+      "action": "建立测试验证检查点",
+      "effect": "测试失败率降低60%"
+    },
+    {
+      "date": "2026-02-15",
+      "problem_id": "PROB-002",
+      "action": "部署编译监控器",
+      "effect": "编译错误检测时间从10分钟降至5秒"
+    }
+  ]
+}
