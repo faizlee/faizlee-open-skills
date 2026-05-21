@@ -10,6 +10,14 @@
 
 ---
 
+## 可用技能
+
+- [Claude Knowledge](./claude-knowledge/)：智能项目知识索引系统。
+- [Todo Database](./todo-database/)：项目 TODO 数据库管理。
+- [AI Relay](./ai-relay/)：用户级 Codex / Claude Code 文件中转工具，支持 bind、relay、历史归档、中文审计报告和本地规则复盘。
+
+---
+
 ## 🎯 核心功能
 
 **问题**: AI 经常重复回答相同的问题，浪费时间，缺乏智能关联和检索机制
