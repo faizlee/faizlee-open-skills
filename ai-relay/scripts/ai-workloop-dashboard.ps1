@@ -91,6 +91,61 @@ function Get-WorkloopDecision {
   return ''
 }
 
+function Get-WorkloopHealth {
+  param(
+    [bool]$UnreadReply,
+    [bool]$UnreadInbox,
+    [bool]$ReportReady,
+    $GoalJson,
+    [datetime]$LastTime,
+    [int]$HistoryCount
+  )
+
+  $issues = @()
+  if ($UnreadReply) {
+    $issues += '有未读 Codex 裁决，建议先让 Claude Code 执行 /workloop <pair>。'
+  }
+  if ($ReportReady) {
+    $issues += 'cc-report.md 已就绪但尚未送审，建议执行 /workloop <pair>。'
+  }
+  if ($UnreadInbox) {
+    $issues += '有未读任务，建议让 Claude Code 拉取执行。'
+  }
+  if ($GoalJson -and $GoalJson.status -eq 'running') {
+    $round = 0
+    $maxRounds = 0
+    if ($GoalJson.round -ne $null) { $round = [int]$GoalJson.round }
+    if ($GoalJson.maxRounds -ne $null) { $maxRounds = [int]$GoalJson.maxRounds }
+    if ($maxRounds -gt 0 -and $round -ge ($maxRounds - 1)) {
+      $issues += "接近最大轮次：$round / $maxRounds。"
+    }
+  }
+  if ($LastTime) {
+    $ageHours = ((Get-Date) - $LastTime).TotalHours
+    if ($ageHours -ge 12 -and $GoalJson -and $GoalJson.status -eq 'running') {
+      $issues += ('running 状态超过 {0:N1} 小时未更新。' -f $ageHours)
+    }
+  }
+  if ($HistoryCount -ge 5 -and $GoalJson -and $GoalJson.status -eq 'running') {
+    $issues += "历史轮次较多：$HistoryCount 轮，建议复盘是否进入低效循环。"
+  }
+
+  if (-not $issues) {
+    return [pscustomobject]@{
+      Level = 'ok'
+      Label = '正常'
+      Issues = @()
+    }
+  }
+  $level = 'watch'
+  if ($ReportReady -or $UnreadReply) { $level = 'action' }
+  return [pscustomobject]@{
+    Level = $level
+    Label = if ($level -eq 'action') { '需要处理' } else { '需要关注' }
+    Issues = $issues
+  }
+}
+
 function Get-WorkloopPairRow {
   param([string]$ProjectRoot, [string]$PairDir)
 
@@ -138,6 +193,7 @@ function Get-WorkloopPairRow {
     Where-Object { $_ } |
     Sort-Object -Descending |
     Select-Object -First 1
+  $health = Get-WorkloopHealth -UnreadReply $unreadReply -UnreadInbox $unreadInbox -ReportReady $reportReady -GoalJson $goalJson -LastTime $lastTime -HistoryCount $historyCount
 
   [pscustomobject]@{
     ProjectRoot = $ProjectRoot
@@ -153,6 +209,9 @@ function Get-WorkloopPairRow {
     LastDecision = if ($goalJson -and $goalJson.lastDecision) { [string]$goalJson.lastDecision } else { Get-WorkloopDecision $reply }
     Status = $status
     StatusClass = $statusClass
+    HealthLevel = $health.Level
+    HealthLabel = $health.Label
+    HealthIssues = @($health.Issues)
     LastUpdated = if ($lastTime) { $lastTime.ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
     HistoryCount = $historyCount
     PairDir = $PairDir
@@ -237,7 +296,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   $historyUri = ConvertTo-WorkloopFileUri $row.HistoryDir
   $reportUri = ConvertTo-WorkloopFileUri $row.ReportPath
   $replyUri = ConvertTo-WorkloopFileUri $row.ReplyPath
-  [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-'))'>")
+  [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-')) health-$([regex]::Replace($row.HealthLevel, '[^A-Za-z0-9_-]', '-'))'>")
   [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.Status)</span></div>")
   [void]$cards.AppendLine("<dl class='meta'>")
   [void]$cards.AppendLine("<div><dt>目标</dt><dd>$(Encode-WorkloopHtml $row.Goal)</dd></div>")
@@ -257,6 +316,17 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   if ($reportUri -and (Test-Path -LiteralPath $row.ReportPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $reportUri)'>打开报告</a>") }
   if ($replyUri -and (Test-Path -LiteralPath $row.ReplyPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $replyUri)'>打开裁决</a>") }
   [void]$cards.AppendLine("</section>")
+  [void]$cards.AppendLine("<section class='health-box'><h3>健康提示：$(Encode-WorkloopHtml $row.HealthLabel)</h3>")
+  if ($row.HealthIssues.Count -gt 0) {
+    [void]$cards.AppendLine("<ul>")
+    foreach ($issue in $row.HealthIssues) {
+      [void]$cards.AppendLine("<li>$(Encode-WorkloopHtml $issue)</li>")
+    }
+    [void]$cards.AppendLine("</ul>")
+  } else {
+    [void]$cards.AppendLine("<p>暂无需要处理的事项。</p>")
+  }
+  [void]$cards.AppendLine("</section>")
   [void]$cards.AppendLine("<section class='excerpt'><h3>下一步命令</h3><pre>$(Encode-WorkloopHtml $command)</pre></section>")
   if ($row.InboxExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新任务</h3><pre>$(Encode-WorkloopHtml $row.InboxExcerpt)</pre></section>") }
   if ($row.ReportExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新报告</h3><pre>$(Encode-WorkloopHtml $row.ReportExcerpt)</pre></section>") }
@@ -267,6 +337,10 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
 $summary = [System.Text.StringBuilder]::new()
 [void]$summary.AppendLine("<div class='summary-item'><strong>$($rows.Count)</strong><span>Pair 总数</span></div>")
 [void]$summary.AppendLine("<div class='summary-item'><strong>$($resolvedProjects.Count)</strong><span>项目总数</span></div>")
+$actionCount = @($rows | Where-Object { $_.HealthLevel -eq 'action' }).Count
+$watchCount = @($rows | Where-Object { $_.HealthLevel -eq 'watch' }).Count
+[void]$summary.AppendLine("<div class='summary-item action'><strong>$actionCount</strong><span>需要处理</span></div>")
+[void]$summary.AppendLine("<div class='summary-item watch'><strong>$watchCount</strong><span>需要关注</span></div>")
 foreach ($group in $statusCounts) {
   [void]$summary.AppendLine("<div class='summary-item'><strong>$($group.Count)</strong><span>$(Encode-WorkloopHtml $group.Name)</span></div>")
 }
@@ -307,6 +381,8 @@ $html = @"
     .status-running { border-left-color:var(--accent); }
     .status-stopped { border-left-color:var(--danger); }
     .status-completed { border-left-color:#5f7d38; }
+    .health-action { box-shadow:0 0 0 1px rgba(161,92,0,.18); }
+    .health-watch { box-shadow:0 0 0 1px rgba(45,95,145,.14); }
     .pair-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
     .pair-head h2 { margin:0; font-size:20px; }
     .pair-head p { margin:4px 0 0; color:var(--muted); font-size:13px; }
@@ -320,6 +396,10 @@ $html = @"
     .actions button, .actions a { appearance:none; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); padding:7px 10px; font:inherit; font-size:12px; text-decoration:none; cursor:pointer; }
     .actions button:hover, .actions a:hover { border-color:var(--accent); color:var(--accent); }
     .actions button.copied { background:#e7f2ed; border-color:var(--accent); color:var(--accent); }
+    .health-box { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
+    .health-box h3 { margin:0 0 6px; font-size:13px; color:var(--muted); }
+    .health-box ul { margin:0; padding-left:18px; font-size:13px; }
+    .health-box p { margin:0; color:var(--muted); font-size:13px; }
     .excerpt { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
     .excerpt h3 { margin:0 0 6px; font-size:13px; color:var(--muted); }
     pre { margin:0; padding:10px; background:#f5f6f2; border:1px solid #e4e6df; border-radius:6px; white-space:pre-wrap; overflow-wrap:anywhere; font-family:Consolas, monospace; font-size:12px; line-height:1.45; }

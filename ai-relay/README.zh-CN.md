@@ -212,6 +212,15 @@ $HOME\.ai-tools\workloop-dashboard\index.html
 
 面板会展示项目、pair、状态、轮次、最新目标、最新报告、最新 Codex 裁决、历史轮数和下一步命令。
 
+面板会给出健康提示：
+
+- 报告待送审
+- 未读 Codex 裁决
+- 未读任务
+- running 状态长时间未更新
+- 接近最大轮次
+- 历史轮次较多，可能进入低效循环
+
 面板操作只做安全辅助：
 
 - 复制 `/workloop <pair>`
