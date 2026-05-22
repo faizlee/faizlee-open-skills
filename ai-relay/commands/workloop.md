@@ -14,11 +14,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\
 - `/workloop com_main`：检查未读 Codex 裁决、未读任务、等待裁决或空闲状态，相当于旧 `/relay com_main`。
 - `/workloop com_main 完成治理地图第二模块`：启动 Agent Workloop 目标闭环。
 
+如果 `/workloop com_main` 检测到 `cc-report.md` 已写好且新于 `codex-reply.md`，统一入口脚本会直接送审给 Codex，不需要用户切到 Codex 执行读取。
+
 如果脚本打印 workloop 任务，直接执行它。每一轮完成后：
 
 1. 写 `.ai-relay/pairs/<pair>/cc-report.md`。
-2. 立即运行：
+2. 立即运行下面任一命令送审，优先用 `/workloop <pair>`：
 
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1" "<pair>"
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-cc.ps1" -Pair "<pair>" -Mode report
 
 3. 读取脚本输出的 Codex 裁决。
@@ -26,4 +29,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\
 5. `ai-relay-cc.ps1 -Mode report` 会自动更新 `goal.json` 和 `goal/goal-summary-latest.md`。
 6. 只在 Codex 接受/完成目标、达到最大轮数、或出现需要用户裁决的冲突时停止。
 
-不要使用 subagents、codex-with-cc、--last。
+不要输出“请在 Codex 中执行 /relay”或“等待 Codex 读取”。不要使用 subagents、codex-with-cc、--last。

@@ -85,7 +85,7 @@ Claude Code 侧 `/workloop <pair>` 不带 goal 时，会按顺序检查：
 
 1. `codex-reply.md` 是否有未读 Codex 裁决。
 2. `cc-inbox.md` 是否有未读新任务。
-3. `cc-report.md` 是否比 `codex-reply.md` 新，若是则提示等待 Codex 裁决。
+3. `cc-report.md` 是否比 `codex-reply.md` 新，若是则由 `/workloop <pair>` 直接送审。
 4. 否则提示当前没有新消息。
 
 ## 常用命令
@@ -194,12 +194,13 @@ ai-workloop.ps1 logicmap 完成治理地图第二模块
 ai-relay-goal.ps1 -Pair logicmap -Goal "完成治理地图第二模块" -MaxRounds 5
 ```
 
-`/workloop <pair>` 不带 goal 时，会执行原 `/relay <pair>` 的状态同步能力：检查未读 Codex 裁决、未读任务、等待裁决或空闲状态。
+`/workloop <pair>` 不带 goal 时，会执行状态同步能力：检查未读 Codex 裁决、未读任务、等待裁决或空闲状态。如果 `cc-report.md` 已写好且新于 `codex-reply.md`，会直接调用 Codex 送审，不需要用户切到 Codex 读取。
 
 Claude Code 规则：
 
 - 每轮完成后必须写 `cc-report.md`。
 - 写完报告后立即执行 `ai-relay-cc.ps1 -Pair <pair> -Mode report`。
+- 或直接执行 `ai-workloop.ps1 <pair>`，由统一入口判断并送审。
 - `Mode report` 会读取 `cc-report.md`，用 `pair.json` 里的明确 `codexSessionId` 调用 Codex，并把裁决写入 `codex-reply.md`。
 - `Mode report` 会自动更新 `goal.json`，并写入 `goal/goal-summary-latest.md`。
 - 如果 Codex 回复中有下一轮指令，Claude Code 直接继续执行，不需要用户确认。

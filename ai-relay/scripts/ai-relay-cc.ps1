@@ -343,8 +343,8 @@ switch ($Mode) {
       Invoke-AiRelayPull -PairDir $pairDir -PairId $pairId
     } elseif (Test-AiRelayWaitingForCodexReply -PairDir $pairDir) {
       Write-Output "AI_RELAY_STATUS=WAITING_FOR_CODEX"
-      Write-Output "AI_RELAY_ACTION=WAIT_OR_RUN_REPORT"
-      Write-Host "cc-report.md 比 codex-reply.md 新，当前正在等待 Codex 裁决。请执行 ai-relay-cc.ps1 -Pair $pairId -Mode report，或等待后台 report 完成。"
+      Write-Output "AI_RELAY_ACTION=RUN_REPORT"
+      Write-Host "cc-report.md 比 codex-reply.md 新。请执行 ai-workloop.ps1 $pairId 或 ai-relay-cc.ps1 -Pair $pairId -Mode report 送审。不要提示用户去 Codex 执行 /relay。"
     } else {
       Write-Output "AI_RELAY_STATUS=IDLE"
       Write-Output "AI_RELAY_ACTION=NO_NEW_MESSAGE"

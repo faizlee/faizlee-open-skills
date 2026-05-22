@@ -17,16 +17,19 @@
 2. 必须先调用统一入口脚本：
    powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1" <pair> <goal...>
 3. 如果用户只输入 pair、没有 goal，不要要求用户补充目标；脚本会执行 workloop auto，检查未读裁决、未读任务、等待裁决或空闲状态。
+   - 如果 `cc-report.md` 已写好且新于 `codex-reply.md`，脚本会直接送审给 Codex。
 4. 如果用户输入 pair + goal，脚本会启动 Agent Workloop 目标闭环。
 5. 执行脚本输出的任务或裁决。
 6. 每完成一轮任务后：
    - 写 `.ai-relay/pairs/<pair>/cc-report.md`
-   - 立即调用 `ai-relay-cc.ps1 -Pair <pair> -Mode report`
+   - 立即调用 `ai-workloop.ps1 <pair>` 或 `ai-relay-cc.ps1 -Pair <pair> -Mode report`
    - 读取脚本输出的 Codex 裁决；该脚本会自动更新 `goal.json` 和 `goal/goal-summary-latest.md`
    - 如果 Codex 给出下一轮指令，直接继续执行，不需要用户确认
    - 如果 Codex 接受/完成，停止
 7. 不要自动 push，除非用户明确要求。
 8. 达到 max rounds、出现冲突风险、验证无法安全完成时停止。
+9. 禁止在写完 `cc-report.md` 后只说“等待 Codex 读取”。
+10. 禁止提示用户“请在 Codex 中执行 /relay <pair>”。`/relay` 已废弃，送审由 `/workloop <pair>` 或 `Mode report` 完成。
 
 ## 旧 relay 行为
 用户侧不再安装 `/relay` 命令。旧 relay 的状态同步行为已经并入 `/workloop <pair>`。
@@ -38,12 +41,12 @@
 3. 该脚本会按顺序检查：
    - `codex-reply.md` 是否有未读 Codex 裁决。
    - `cc-inbox.md` 是否有未读 Codex 新任务。
-   - `cc-report.md` 是否比 `codex-reply.md` 新，是否正在等待 Codex 裁决。
+   - `cc-report.md` 是否比 `codex-reply.md` 新，是否需要送审。
    - 是否空闲。
 4. 必须优先读取脚本输出的机器状态：
    - `AI_RELAY_STATUS=CODEX_REPLY_UNREAD`：读取并执行脚本输出的 Codex 裁决。
    - `AI_RELAY_STATUS=CC_INBOX_UNREAD`：读取并执行脚本输出的 Codex 新任务。
-   - `AI_RELAY_STATUS=WAITING_FOR_CODEX`：报告已发出或应发出，等待 Codex 裁决。
+   - `AI_RELAY_STATUS=WAITING_FOR_CODEX`：报告比回复新，应立即执行 `ai-workloop.ps1 <pair>` 或 `ai-relay-cc.ps1 -Pair <pair> -Mode report` 送审。
    - `AI_RELAY_STATUS=IDLE`：没有新消息，也没有未读裁决；不要说“等待 Codex 裁决”。
 5. 普通 relay 中，如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
    ai-relay-cc.ps1 -Pair <pair> -Mode report
