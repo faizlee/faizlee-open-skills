@@ -235,6 +235,7 @@ function New-CcRunnerStatusHtml {
   $projectArg = [System.Uri]::EscapeDataString($Project)
   $pairArg = [System.Uri]::EscapeDataString($Pair)
   $refreshUrl = "$($BaseUrl.TrimEnd('/'))/status/cc-runner?projectRoot=$projectArg&pair=$pairArg"
+  $runUrl = "$($BaseUrl.TrimEnd('/'))/action/cc-runner?projectRoot=$projectArg&pair=$pairArg"
   $stopUrl = "$($BaseUrl.TrimEnd('/'))/action/cc-runner-stop?projectRoot=$projectArg&pair=$pairArg"
   $refresh = if ($statusText -in @('queued','started','running','unknown')) {
     "<meta http-equiv='refresh' content='2;url=$(Encode-Html $refreshUrl)'>"
@@ -245,6 +246,15 @@ function New-CcRunnerStatusHtml {
     @"
     <form method="post" action="$(Encode-Html $stopUrl)" onsubmit="return confirm('确认停止这个 CC runner 进程？');">
       <button type="submit">停止 CC 执行</button>
+    </form>
+"@
+  } else {
+    ''
+  }
+  $runForm = if (-not ($statusText -in @('queued','started','running') -and $processAlive)) {
+    @"
+    <form method="post" action="$(Encode-Html $runUrl)" onsubmit="return confirm('确认重新启动这个 pair 的 CC 执行？');">
+      <button class="secondary" type="submit">重新执行</button>
     </form>
 "@
   } else {
@@ -268,6 +278,7 @@ function New-CcRunnerStatusHtml {
     dd { margin:0; overflow-wrap:anywhere; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f6f2; border: 1px solid #e4e6df; border-radius: 6px; padding: 12px; }
     button { appearance:none; border:1px solid #b76a6a; border-radius:6px; background:#fff4f4; color:#8a2f2f; padding:8px 12px; font:inherit; cursor:pointer; }
+    button.secondary { border-color:#8a927f; background:#f5f6f2; color:#25301f; }
     a { color: #176b5d; }
   </style>
 </head>
@@ -286,6 +297,7 @@ function New-CcRunnerStatusHtml {
       <dt>stderr 日志</dt><dd>$(Encode-Html $runnerStderrPath)</dd>
     </dl>
     $stopForm
+    $runForm
     <h2>输出片段</h2>
     <pre>$(Encode-Html $output)</pre>
     <h2>stderr 片段</h2>
@@ -316,6 +328,34 @@ function Stop-ProcessTreeById {
   if ($process) {
     Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
   }
+}
+
+function Get-ActiveCcRunnerStatus {
+  param([Parameter(Mandatory=$true)][string]$StatusPath)
+  if (-not (Test-Path -LiteralPath $StatusPath)) {
+    return $null
+  }
+  try {
+    $status = Get-Content -LiteralPath $StatusPath -Raw -Encoding utf8 | ConvertFrom-Json
+  } catch {
+    return $null
+  }
+  $state = if ($status.status) { [string]$status.status } else { '' }
+  if ($state -notin @('queued','started','running')) {
+    return $null
+  }
+  $pidText = if ($status.processId) { [string]$status.processId } else { '' }
+  if ($pidText -match '^\d+$') {
+    $process = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
+    if ($process) {
+      return $status
+    }
+  }
+  $status.status = 'stale'
+  $status.message = "检测到上一次 CC runner 状态是 $state，但进程已不存在。已标记为 stale，可重新执行。"
+  $status.updatedAt = (Get-Date).ToString('o')
+  Write-AiRelayJson $status $StatusPath
+  return $null
 }
 
 function New-WorkloopCodexSessionId {
@@ -810,6 +850,12 @@ Read-Host 'Codex 终端已退出，按 Enter 关闭窗口'
       $pairDir = Get-AiRelayPairDir $project $pair
       if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
       $statusPath = Join-Path $pairDir 'cc-runner-status.json'
+      $activeStatus = Get-ActiveCcRunnerStatus -StatusPath $statusPath
+      if ($activeStatus) {
+        Write-Host ("[{0}] SKIP cc-runner already active project={1} pair={2} pid={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $activeStatus.processId)
+        Write-HttpText -Response $Response -Text (New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix)
+        return
+      }
       $runId = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
       $stdoutPath = Join-Path $pairDir "cc-runner-process-$runId.stdout.log"
       $stderrPath = Join-Path $pairDir "cc-runner-process-$runId.stderr.log"
@@ -836,6 +882,7 @@ try {
   [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
   `$OutputEncoding = [System.Text.UTF8Encoding]::new()
 } catch {}
+try {
 Set-Location -LiteralPath '$($project.Replace("'", "''"))'
 Write-Host 'Agent Workloop CC runner'
 Write-Host 'Pair: $($pair.Replace("'", "''"))'
@@ -927,6 +974,18 @@ if (`$exitCode -ne 0) {
   Write-Host ''
   Write-Host 'Claude Code 执行结束。' -ForegroundColor Green
   }
+} catch {
+  Write-Host "CC runner wrapper failed: `$(`$_.Exception.Message)" -ForegroundColor Red
+  try {
+    if (`$status -and `$statusPath) {
+      `$status.status = 'failed'
+      `$status.exitCode = 1
+      `$status.message = "CC runner wrapper failed: `$(`$_.Exception.Message)"
+      `$status.updatedAt = (Get-Date).ToString('o')
+      `$status | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath `$statusPath -Encoding utf8
+    }
+  } catch {}
+}
 Write-Host '窗口用于观看 Claude Code 原生输出；控制仍然可以通过面板或原 CC/Codex 会话完成。'
 Read-Host '按 Enter 关闭窗口'
 "@
