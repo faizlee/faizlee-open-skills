@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$Pair,
   [string]$CcSessionId = '',
   [string]$Task = ''
@@ -93,22 +93,22 @@ codexReplyPath: $codexReplyPath
 createdAt: $createdAt
 rebind: true
 
-## 绑定说明
+## Bind Notes
 
-这是一份 CC 侧 rebind 请求，用于给已有 pair 补充或刷新 Claude Code session id。
+This is a Claude Code side rebind request for an existing pair.
 
-如果 pair.json 已存在，本脚本已经只更新 CC 侧元数据，并保留原 codexSessionId、报告、回复和日志。
+If pair.json already exists, this script only updates Claude Code metadata and preserves codexSessionId, reports, replies, and logs.
 
-如果仍需要让 Codex 侧重新写入 context，可在对应 Codex 会话中执行：
+If Codex context needs to be refreshed, run this in the matching Codex session:
 
-ai-relay-bind-codex.ps1 -Pair $Pair -CodexSessionId "<当前Codex session id>" -Force
+ai-relay-bind-codex.ps1 -Pair $Pair -CodexSessionId "<current Codex session id>" -Force
 
-规则：
-- 一个 pair 绑定一个明确的 Codex session id。
-- 一个 pair 绑定一个明确的 Claude Code session id。
-- 不使用 --last。
-- 不使用 subagent。
-- 不启动 codex-with-cc。
+Rules:
+- One pair binds one explicit Codex session id.
+- One pair binds one explicit Claude Code session id.
+- Do not use --last.
+- Do not use subagent.
+- Do not start codex-with-cc.
 "@
 
 $bindPath = Join-Path $pairDir 'bind-request.md'
@@ -131,12 +131,12 @@ Set-AiRelayCurrentPair -ProjectRoot $projectRoot -Pair $Pair -Task $Task
 Add-AiRelayLog -PairDir $pairDir -Event 'cc-rebind' -Detail "Updated Claude Code session id for this pair. ccSessionId=$detectedCcSessionId"
 [void](Copy-AiRelayText $bindRequest)
 
-Write-Host "已刷新 CC 侧绑定信息。"
+Write-Host "Claude Code binding metadata refreshed."
 Write-Host "Pair: $Pair"
 Write-Host "ccSessionId: $detectedCcSessionId"
 Write-Host "Bind request: $bindPath"
 if ($pairJson) {
-  Write-Host "pair.json 已更新，并保留原 codexSessionId、报告、回复和日志。"
+  Write-Host "pair.json updated. Existing codexSessionId, reports, replies, and logs were preserved."
 } else {
-  Write-Host "pair.json 尚不存在。请把 bind-request.md 交给 Codex，并执行 /bind $Pair。"
+  Write-Host "pair.json does not exist yet. Send bind-request.md to Codex and run /bind $Pair."
 }

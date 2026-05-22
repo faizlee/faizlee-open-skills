@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$Pair,
   [ValidateSet('inbox','reply')][string]$Source = 'inbox',
   [ValidateSet('default','acceptEdits','auto','dontAsk','plan')][string]$PermissionMode = 'default',

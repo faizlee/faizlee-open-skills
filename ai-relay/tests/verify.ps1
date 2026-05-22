@@ -1,4 +1,4 @@
-param(
+﻿param(
   [switch]$SkipDryRun
 )
 
@@ -73,10 +73,10 @@ foreach ($forbidden in @('--last', 'codex-with-cc', 'subagent')) {
 if (-not $ccText.Contains('codexSessionId')) {
   throw "ai-relay-cc.ps1 must use explicit codexSessionId."
 }
-if (-not $ccText.Contains("'--sandbox', 'read-only'")) {
+if (-not ($ccText.Contains("'--sandbox', 'read-only'") -or $ccText.Contains('sandbox_mode="read-only"'))) {
   throw "ai-relay-cc.ps1 must use read-only sandbox."
 }
-if (-not $ccText.Contains("'--output-last-message'")) {
+if (-not ($ccText.Contains("'--output-last-message'") -or $ccText.Contains("'-o'"))) {
   throw "ai-relay-cc.ps1 must write output-last-message."
 }
 

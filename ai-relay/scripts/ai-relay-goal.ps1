@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Pair,
   [string]$Goal,
   [int]$MaxRounds = 5,

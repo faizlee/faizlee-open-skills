@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Pair,
   [int]$Last = 0,
   [ValidateSet('md','html','both')][string]$Format = 'both',

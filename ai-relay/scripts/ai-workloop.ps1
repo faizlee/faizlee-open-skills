@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Position=0)][string]$Pair,
   [Parameter(Position=1, ValueFromRemainingArguments=$true)][string[]]$GoalParts,
   [int]$MaxRounds = 5

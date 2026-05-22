@@ -297,8 +297,8 @@ $report
 
   if (Get-Command codex -ErrorAction SilentlyContinue) {
     $codexSessionId = [string]$pair.codexSessionId
-    $args = @('exec', '-C', $ProjectRoot, '--sandbox', 'read-only', 'resume', $codexSessionId, '-', '--output-last-message', $replyPath)
-    Add-AiRelayLog -PairDir $PairDir -Event 'cc-report-to-codex' -Detail "historyId: $historyId`nRunning: codex exec -C <projectRoot> --sandbox read-only resume <codexSessionId> - --output-last-message <codex-reply.md>"
+    $args = @('exec', '-C', $ProjectRoot, 'resume', '--ignore-user-config', '-c', 'sandbox_mode="read-only"', '-o', $replyPath, $codexSessionId, '-')
+    Add-AiRelayLog -PairDir $PairDir -Event 'cc-report-to-codex' -Detail "historyId: $historyId`nRunning: codex exec -C <projectRoot> resume --ignore-user-config -c sandbox_mode=<read-only> -o <codex-reply.md> <codexSessionId> -"
     Get-Content -LiteralPath $promptPath -Raw -Encoding utf8 | & codex @args
     if ($LASTEXITCODE -ne 0) {
       $summary.status = "codex-failed-$LASTEXITCODE"
