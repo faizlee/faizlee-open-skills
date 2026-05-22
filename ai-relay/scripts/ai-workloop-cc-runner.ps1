@@ -82,6 +82,56 @@ function Convert-StreamJsonLineToText {
   try {
     $obj = $Line | ConvertFrom-Json
     $type = if ($obj.type) { [string]$obj.type } else { 'event' }
+    if ($type -eq 'stream_event' -and $obj.event) {
+      $eventType = [string]$obj.event.type
+      if ($eventType -eq 'content_block_delta' -and $obj.event.delta) {
+        if ($obj.event.delta.text) {
+          return [string]$obj.event.delta.text
+        }
+        if ($obj.event.delta.partial_json) {
+          return "[tool input] $($obj.event.delta.partial_json)"
+        }
+      }
+      if ($eventType -eq 'content_block_start' -and $obj.event.content_block) {
+        $block = $obj.event.content_block
+        if ($block.type -eq 'tool_use') {
+          return "[tool] $($block.name) started"
+        }
+        return "[$eventType] $($block.type)"
+      }
+      if ($eventType -eq 'message_delta' -and $obj.event.delta -and $obj.event.delta.stop_reason) {
+        return "[message] stop_reason=$($obj.event.delta.stop_reason)"
+      }
+      if ($eventType -in @('content_block_stop','message_stop')) {
+        return "[$eventType]"
+      }
+      return "[$eventType]"
+    }
+    if ($type -eq 'assistant' -and $obj.message -and $obj.message.content) {
+      $parts = @()
+      foreach ($content in @($obj.message.content)) {
+        if ($content.type -eq 'text' -and $content.text) {
+          $parts += [string]$content.text
+        } elseif ($content.type -eq 'tool_use') {
+          $toolInput = if ($content.input) { ($content.input | ConvertTo-Json -Depth 8 -Compress) } else { '' }
+          $parts += "[tool] $($content.name) $toolInput"
+        }
+      }
+      if ($parts.Count -gt 0) {
+        return ($parts -join "`n")
+      }
+    }
+    if ($type -eq 'system') {
+      $subtype = if ($obj.subtype) { [string]$obj.subtype } else { 'system' }
+      $summary = if ($obj.summary) { [string]$obj.summary } elseif ($obj.description) { [string]$obj.description } elseif ($obj.status) { [string]$obj.status } else { '' }
+      if ($summary) {
+        return "[system:$subtype] $summary"
+      }
+      return "[system:$subtype]"
+    }
+    if ($type -eq 'user' -and $obj.tool_use_result) {
+      return "[tool result] $($obj.tool_use_result)"
+    }
     $fragments = @(Get-JsonTextFragments -Value $obj | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
     if ($fragments.Count -gt 0) {
       return "[$type] " + ($fragments -join "`n")

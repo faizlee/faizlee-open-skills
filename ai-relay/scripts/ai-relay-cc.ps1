@@ -272,7 +272,7 @@ $report
   if ($existingIndexes) {
     $nextIndex = (($existingIndexes | Measure-Object -Maximum).Maximum + 1)
   }
-  $historyId = ('{0:D4}-{1}' -f $nextIndex, (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  $historyId = ('{0}-{1}' -f $nextIndex.ToString('D4'), (Get-Date -Format 'yyyyMMdd-HHmmss'))
   $historyDir = Join-Path $historyRoot $historyId
   New-Item -ItemType Directory -Force -Path $historyDir | Out-Null
   if (Test-Path -LiteralPath $inboxPath) {
