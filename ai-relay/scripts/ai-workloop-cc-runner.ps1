@@ -102,7 +102,17 @@ Add-AiRelayLog -PairDir $pairDir -Event 'cc-runner-start' -Detail "Running Claud
 Write-CcRunnerStatus -Status 'running' -Message "Claude Code runner started. Source=$Source PermissionMode=$PermissionMode MaxBudgetUsd=$MaxBudgetUsd"
 Push-Location $projectRoot
 try {
-  Set-Content -LiteralPath $outPath -Value '' -Encoding utf8
+  $startText = @"
+AI_WORKLOOP_CC_RUNNER_STATUS=RUNNING
+startedAt=$(Get-Date -Format o)
+pair=$pairId
+source=$sourcePath
+claudeSessionId=$ccSessionId
+
+Claude CLI is running in --print mode. Some Claude CLI versions do not stream partial stdout, so this file may stay unchanged until the command finishes.
+
+"@
+  Set-Content -LiteralPath $outPath -Value $startText -Encoding utf8
   $outputLines = & $claude.Source @args 2>&1 | Tee-Object -FilePath $outPath
   $exitCode = $LASTEXITCODE
   $output = $outputLines | Out-String

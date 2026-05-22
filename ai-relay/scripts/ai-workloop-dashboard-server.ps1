@@ -168,6 +168,9 @@ function New-CcRunnerStatusHtml {
       $output = $output.Substring($output.Length - 12000)
     }
   }
+  if ([string]::IsNullOrWhiteSpace($output)) {
+    $output = "暂无 Claude stdout 输出。Claude CLI 的 --print 模式可能在任务完成后才一次性写入结果。`n`n如果状态仍是 running，请继续等待；也可以查看控制器窗口里的 cc-runner started pid。"
+  }
   $reportInfo = if (Test-Path -LiteralPath $reportPath) {
     $item = Get-Item -LiteralPath $reportPath
     "cc-report.md 更新时间：$($item.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))"
