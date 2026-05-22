@@ -333,6 +333,10 @@ Claude Code 规则：
 
 验证内容包括脚本语法、禁用项、明确 session id、read-only sandbox、dry-run bind。
 
+## 许可证
+
+MIT License。详见仓库根目录 [LICENSE](../LICENSE)。
+
 ## 限制
 
 - 不会自动把后台 Codex 输出插入当前 Codex UI。

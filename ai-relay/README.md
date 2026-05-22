@@ -63,3 +63,7 @@ Claude Code slash commands:
 ```powershell
 .\tests\verify.ps1
 ```
+
+## License
+
+MIT License. See the repository root [LICENSE](../LICENSE).
