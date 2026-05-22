@@ -368,10 +368,9 @@ function Handle-Action {
       $pairDir = Get-AiRelayPairDir $project $pair
       if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
       $statusPath = Join-Path $pairDir 'cc-runner-status.json'
-      $stdoutPath = Join-Path $pairDir 'cc-runner-process.stdout.log'
-      $stderrPath = Join-Path $pairDir 'cc-runner-process.stderr.log'
-      Set-Content -LiteralPath $stdoutPath -Value '' -Encoding utf8
-      Set-Content -LiteralPath $stderrPath -Value '' -Encoding utf8
+      $runId = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+      $stdoutPath = Join-Path $pairDir "cc-runner-process-$runId.stdout.log"
+      $stderrPath = Join-Path $pairDir "cc-runner-process-$runId.stderr.log"
       Write-AiRelayJson ([ordered]@{
         pairId = $pair
         projectRoot = $project
