@@ -132,6 +132,19 @@ function Convert-StreamJsonLineToText {
     if ($type -eq 'user' -and $obj.tool_use_result) {
       return "[tool result] $($obj.tool_use_result)"
     }
+    if ($type -eq 'result') {
+      $subtype = if ($obj.subtype) { [string]$obj.subtype } else { 'result' }
+      $errorText = ''
+      if ($obj.errors) {
+        $errorText = (@($obj.errors) -join '; ')
+      }
+      $cost = if ($obj.total_cost_usd -ne $null) { " cost=$($obj.total_cost_usd)" } else { '' }
+      $duration = if ($obj.duration_ms -ne $null) { " durationMs=$($obj.duration_ms)" } else { '' }
+      if ($errorText) {
+        return "[result:$subtype] $errorText$cost$duration"
+      }
+      return "[result:$subtype]$cost$duration"
+    }
     $fragments = @(Get-JsonTextFragments -Value $obj | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
     if ($fragments.Count -gt 0) {
       return "[$type] " + ($fragments -join "`n")
