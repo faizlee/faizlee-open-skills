@@ -13,6 +13,7 @@ $required = @(
   'ai-workloop-cc-runner.ps1',
   'ai-workloop-project.ps1',
   'ai-workloop-rebind-cc.ps1',
+  'ai-workloop-summary.ps1',
   'ai-workloop.ps1',
   'ai-relay-bind-cc.ps1',
   'ai-relay-bind-codex.ps1',

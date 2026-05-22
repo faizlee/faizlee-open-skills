@@ -1139,6 +1139,19 @@ Read-Host '按 Enter 关闭窗口'
       return
     }
 
+    if ($path -eq '/action/summary') {
+      $analyzer = [string]$query['analyzer']
+      if ([string]::IsNullOrWhiteSpace($analyzer)) { $analyzer = 'cc' }
+      if ($analyzer -notin @('cc','codex','local')) { throw "不支持的总结分析方式：$analyzer" }
+      Write-Host ("[{0}] RUN summary project={1} pair={2} analyzer={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $analyzer)
+      $output = Invoke-Captured {
+        Push-Location $project
+        try { & "$PSScriptRoot\ai-workloop-summary.ps1" -Pair $pair -Analyzer $analyzer -Format both -Open } finally { Pop-Location }
+      }
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 总结生成结果' "<pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
     if ($path -eq '/action/archive-pair') {
       $pairDir = Get-AiRelayPairDir $project $pair
       if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }

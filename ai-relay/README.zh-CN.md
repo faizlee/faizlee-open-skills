@@ -100,6 +100,7 @@ ai-workloop-project.ps1 -Mode list
 ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open
 ai-workloop-dashboard-server.ps1 -Open
 ai-workloop-cc-runner.ps1 -Pair <pair>
+ai-workloop-summary.ps1 -Pair <pair> -Analyzer cc -Format both
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode pull
 ai-relay-cc.ps1 -Pair <pair> -Mode report
@@ -172,6 +173,27 @@ ai-relay-codex.ps1 -Pair <pair> -HistoryId <id>
 ```
 
 ## 工作复盘
+
+生成 pair 会话快速总结。默认调用 Claude Code 做正常只读分析，可读取项目和 pair 数据，但不修改文件：
+
+```powershell
+ai-workloop-summary.ps1 -Pair bug-typeerror -Analyzer cc -Format both
+```
+
+也可以选择 Codex 分析或本地规则摘要：
+
+```powershell
+ai-workloop-summary.ps1 -Pair bug-typeerror -Analyzer codex -Format both
+ai-workloop-summary.ps1 -Pair bug-typeerror -Analyzer local -Format both
+```
+
+总结报告重点回答：
+
+- 当前结果是否完成
+- 目标是否可能偏移
+- 是否可能进入低效循环
+- 最新下一步是什么
+- 哪些文件和问题被反复提到
 
 生成本地规则复盘报告，不调用 Codex，不消耗 Codex 额度：
 
@@ -261,6 +283,7 @@ http://127.0.0.1:17877/
 - 执行 `/workloop <pair>`：可能调用 Codex，会在按钮上二次确认
 - 让 CC 执行：需要 pair.json 中有 `ccSessionId`，会调用 Claude CLI，可能修改文件并消耗额度
 - 系统打开 pair 目录
+- 生成并打开 pair 快速总结
 - 生成并打开审计报告
 - 生成并打开复盘报告
 
