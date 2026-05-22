@@ -558,6 +558,68 @@ function Handle-Action {
       return
     }
 
+    if ($path -eq '/action/set-task') {
+      $form = Get-RequestFormMap $Request
+      $projectText = if ($form.ContainsKey('projectRoot') -and -not [string]::IsNullOrWhiteSpace([string]$form['projectRoot'])) { [string]$form['projectRoot'] } else { Decode-Query $query['projectRoot'] }
+      $pair = if ($form.ContainsKey('pair') -and -not [string]::IsNullOrWhiteSpace([string]$form['pair'])) { [string]$form['pair'] } else { Decode-Query $query['pair'] }
+      if ([string]::IsNullOrWhiteSpace($projectText)) { throw "缺少 projectRoot，无法设置目标。" }
+      if ([string]::IsNullOrWhiteSpace($pair)) { throw "缺少 pair，无法设置目标。" }
+      $project = Assert-AllowedProject $projectText
+      Assert-AiRelayPairName $pair
+      $goal = ([string]$form['goal']).Trim()
+      $task = ([string]$form['task']).Trim()
+      $maxRounds = 3
+      if ([string]$form['maxRounds'] -match '^\d+$') { $maxRounds = [int]$form['maxRounds'] }
+      if ($maxRounds -lt 1) { $maxRounds = 1 }
+      if ($maxRounds -gt 20) { $maxRounds = 20 }
+      if ([string]::IsNullOrWhiteSpace($goal) -and [string]::IsNullOrWhiteSpace($task)) {
+        throw "请至少填写目标或本轮任务。"
+      }
+      if ([string]::IsNullOrWhiteSpace($goal)) { $goal = $task }
+      if ([string]::IsNullOrWhiteSpace($task)) {
+        $task = "请围绕以下目标执行下一步最小任务，并在完成后写入 cc-report.md：`n`n$goal"
+      }
+      $pairDir = Get-AiRelayPairDir $project $pair
+      if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
+      $goalPath = Join-Path $pairDir 'goal.json'
+      $inboxPath = Join-Path $pairDir 'cc-inbox.md'
+      Write-AiRelayJson ([ordered]@{
+        pairId = $pair
+        goal = $goal
+        status = 'ready'
+        round = 0
+        maxRounds = $maxRounds
+        startedAt = (Get-Date).ToString('o')
+        updatedAt = (Get-Date).ToString('o')
+        stopReason = ''
+        lastDecision = ''
+        lastNextInstruction = ''
+      }) $goalPath
+      $taskText = @"
+# Agent Workloop Task - $pair
+
+## Goal
+$goal
+
+## Current Task
+$task
+
+## Rules
+- Execute only the current task unless it is unsafe or ambiguous.
+- Keep changes minimal and scoped to this pair.
+- After execution, write .ai-relay/pairs/$pair/cc-report.md.
+- Include changed files, verification commands, risks, and conflict risk.
+- Do not paste long logs or full diffs.
+- Do not auto-push unless the task explicitly asks.
+"@
+      Set-Content -LiteralPath $inboxPath -Value $taskText -Encoding utf8
+      Add-AiRelayLog -PairDir $pairDir -Event 'dashboard-set-task' -Detail "Goal: $goal`nMaxRounds=$maxRounds`nTask:`n$task"
+      [void](Copy-AiRelayText $taskText)
+      Write-Host ("[{0}] SET task project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
+      Write-HttpText -Response $Response -Text (New-ResultHtml '目标和任务已设置' "<p>已更新 goal.json，并写入 cc-inbox.md。现在可以点击“让 CC 执行并打开终端”。</p><pre>$(Encode-Html $taskText)</pre>")
+      return
+    }
+
     if ($path -eq '/action/rebind-codex') {
       $form = Get-RequestFormMap $Request
       $projectText = if ($form.ContainsKey('projectRoot') -and -not [string]::IsNullOrWhiteSpace([string]$form['projectRoot'])) { [string]$form['projectRoot'] } else { Decode-Query $query['projectRoot'] }

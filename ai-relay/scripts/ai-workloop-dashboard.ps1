@@ -351,6 +351,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>打开 Pair</button>")
     if (Test-Path -LiteralPath $row.ReportPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$reportPathArg")'>打开报告</button>") }
     if (Test-Path -LiteralPath $row.ReplyPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$replyPathArg")'>打开裁决</button>") }
+    [void]$cards.AppendLine("<button type='button' data-set-task='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-goal='$(Encode-WorkloopHtml $row.Goal)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/set-task?projectRoot=$projectArg&pair=$pairArg")'>设置目标/任务</button>")
     [void]$cards.AppendLine("<button type='button' data-rebind-codex='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-codex?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 Codex</button>")
     [void]$cards.AppendLine("<button type='button' data-rebind-cc='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-cc?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 CC</button>")
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='归档 Pair 会把目录移动到 .ai-relay/archived-pairs，不会删除数据。确认归档？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/archive-pair?projectRoot=$projectArg&pair=$pairArg")' data-refresh='true'>归档 Pair</button>")
@@ -664,6 +665,60 @@ $html = @"
           if (resultWindow) {
             resultWindow.document.open();
             resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>绑定失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
+            resultWindow.document.close();
+          } else {
+            window.alert(errorText);
+          }
+        } finally {
+          button.textContent = oldText;
+          button.disabled = false;
+        }
+      });
+    });
+    document.querySelectorAll('button[data-set-task]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const pair = button.getAttribute('data-pair') || '';
+        const projectRoot = button.getAttribute('data-project') || '';
+        const url = button.getAttribute('data-url') || '';
+        const currentGoal = button.getAttribute('data-goal') || '';
+        const goal = window.prompt('设置目标：', currentGoal);
+        if (goal === null) return;
+        const task = window.prompt('设置本轮任务；留空则按目标生成默认任务：', '');
+        if (task === null) return;
+        const maxRoundsRaw = window.prompt('最大轮次：', '3');
+        if (maxRoundsRaw === null) return;
+        const resultWindow = window.open('', '_blank');
+        const data = new URLSearchParams();
+        data.set('projectRoot', projectRoot);
+        data.set('pair', pair);
+        data.set('goal', goal);
+        data.set('task', task);
+        data.set('maxRounds', maxRoundsRaw);
+        const oldText = button.textContent;
+        button.textContent = '保存中...';
+        button.disabled = true;
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: data.toString()
+          });
+          const text = await response.text();
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write(text);
+            resultWindow.document.close();
+          } else {
+            window.alert(text.replace(/<[^>]+>/g, ''));
+          }
+          if (response.ok) {
+            setTimeout(() => window.location.reload(), 500);
+          }
+        } catch (error) {
+          const errorText = '设置失败：' + error;
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>设置失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
             resultWindow.document.close();
           } else {
             window.alert(errorText);
