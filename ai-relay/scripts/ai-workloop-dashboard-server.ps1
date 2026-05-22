@@ -387,6 +387,8 @@ function Handle-Action {
       $powershell = Get-Command powershell -ErrorAction SilentlyContinue
       if (-not $powershell) { throw "powershell.exe not found." }
       $runnerPath = Join-Path $PSScriptRoot 'ai-workloop-cc-runner.ps1'
+      $runnerOutputPath = Join-Path $pairDir 'cc-runner-output.md'
+      $runnerStreamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
       $terminalCommand = @"
 `$ErrorActionPreference = 'Continue'
 try {
@@ -397,11 +399,47 @@ Set-Location -LiteralPath '$($project.Replace("'", "''"))'
 Write-Host 'Agent Workloop CC runner'
 Write-Host 'Pair: $($pair.Replace("'", "''"))'
 Write-Host 'Project: $($project.Replace("'", "''"))'
-Write-Host 'Log: $($stdoutPath.Replace("'", "''"))'
+Write-Host 'Live output: $($runnerOutputPath.Replace("'", "''"))'
+Write-Host 'Raw stream: $($runnerStreamPath.Replace("'", "''"))'
 Write-Host ''
-& '$($runnerPath.Replace("'", "''"))' -Pair '$($pair.Replace("'", "''"))' 2>&1 | Tee-Object -FilePath '$($stdoutPath.Replace("'", "''"))'
+if (Test-Path -LiteralPath '$($runnerOutputPath.Replace("'", "''"))') {
+  Clear-Content -LiteralPath '$($runnerOutputPath.Replace("'", "''"))' -ErrorAction SilentlyContinue
+} else {
+  New-Item -ItemType File -Path '$($runnerOutputPath.Replace("'", "''"))' -Force | Out-Null
+}
+`$runner = Start-Process -FilePath '$($powershell.Source.Replace("'", "''"))' -ArgumentList @(
+  '-NoProfile',
+  '-ExecutionPolicy',
+  'Bypass',
+  '-File',
+  '$($runnerPath.Replace("'", "''"))',
+  '-Pair',
+  '$($pair.Replace("'", "''"))'
+) -WorkingDirectory '$($project.Replace("'", "''"))' -WindowStyle Hidden -RedirectStandardOutput '$($stdoutPath.Replace("'", "''"))' -RedirectStandardError '$($stderrPath.Replace("'", "''"))' -PassThru
+Write-Host "Runner process: `$(`$runner.Id)"
 Write-Host ''
-Write-Host 'CC runner 已结束。窗口只用于观看输出；控制仍然通过面板或原 CC/Codex 会话完成。'
+Write-Host '--- Claude Code live output ---'
+`$position = 0
+while (-not `$runner.HasExited) {
+  if (Test-Path -LiteralPath '$($runnerOutputPath.Replace("'", "''"))') {
+    `$text = Get-Content -LiteralPath '$($runnerOutputPath.Replace("'", "''"))' -Raw -Encoding utf8 -ErrorAction SilentlyContinue
+    if (`$null -ne `$text -and `$text.Length -gt `$position) {
+      Write-Host -NoNewline `$text.Substring(`$position)
+      `$position = `$text.Length
+    }
+  }
+  Start-Sleep -Milliseconds 700
+  `$runner.Refresh()
+}
+if (Test-Path -LiteralPath '$($runnerOutputPath.Replace("'", "''"))') {
+  `$text = Get-Content -LiteralPath '$($runnerOutputPath.Replace("'", "''"))' -Raw -Encoding utf8 -ErrorAction SilentlyContinue
+  if (`$null -ne `$text -and `$text.Length -gt `$position) {
+    Write-Host -NoNewline `$text.Substring(`$position)
+  }
+}
+Write-Host ''
+Write-Host "--- CC runner finished. ExitCode=`$(`$runner.ExitCode) ---"
+Write-Host '窗口只用于观看输出；控制仍然通过面板或原 CC/Codex 会话完成。'
 Read-Host '按 Enter 关闭窗口'
 "@
       $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($terminalCommand))
