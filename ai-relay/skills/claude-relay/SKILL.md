@@ -13,12 +13,19 @@
 
 ## /relay [pair]
 当用户输入 /relay：
-1. 如果 cc-inbox.md 有未读 Codex 指令，读取并执行。
-2. 如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
+1. 不要自行读取 `cc-inbox.md` / `cc-report.md` / `codex-reply.md` 做时间比较。
+2. 必须先调用用户级脚本，让脚本处理 relay 状态机：
+   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-cc.ps1" -Pair <pair> -Mode auto
+3. 该脚本会按顺序检查：
+   - `codex-reply.md` 是否有未读 Codex 裁决。
+   - `cc-inbox.md` 是否有未读 Codex 新任务。
+   - `cc-report.md` 是否比 `codex-reply.md` 新，是否正在等待 Codex 裁决。
+   - 是否空闲。
+4. 如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
    ai-relay-cc.ps1 -Pair <pair> -Mode report
-3. 不要启动 Codex subagent。
-4. 不要启动 codex-with-cc。
-5. 不要写入其他 pair 目录。
+5. 不要启动 Codex subagent。
+6. 不要启动 codex-with-cc。
+7. 不要写入其他 pair 目录。
 
 ## cc-report.md 格式
 
