@@ -166,8 +166,30 @@ function Get-WorkloopPairRow {
   }
 }
 
+$dashboardConfigDir = Join-Path $HOME '.ai-tools\workloop-dashboard'
+$projectConfigPath = Join-Path $dashboardConfigDir 'projects.json'
+
+function Read-RegisteredWorkloopProjects {
+  if (Test-Path -LiteralPath $projectConfigPath) {
+    try {
+      $data = Get-Content -LiteralPath $projectConfigPath -Raw -Encoding utf8 | ConvertFrom-Json
+      if ($data.projects) {
+        return @($data.projects | ForEach-Object { [string]$_ })
+      }
+    } catch {
+      Write-Warning "无法读取项目注册表：$projectConfigPath"
+    }
+  }
+  return @()
+}
+
 if (-not $ProjectRoot -or $ProjectRoot.Count -eq 0) {
-  $ProjectRoot = @((Get-AiRelayProjectRoot))
+  $registeredProjects = @(Read-RegisteredWorkloopProjects)
+  if ($registeredProjects.Count -gt 0) {
+    $ProjectRoot = $registeredProjects
+  } else {
+    $ProjectRoot = @((Get-AiRelayProjectRoot))
+  }
 }
 
 $projectInputs = @()
@@ -188,7 +210,7 @@ foreach ($root in $projectInputs) {
 }
 
 if (-not $OutDir) {
-  $OutDir = Join-Path $HOME '.ai-tools\workloop-dashboard'
+  $OutDir = $dashboardConfigDir
 }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $htmlPath = Join-Path $OutDir 'index.html'

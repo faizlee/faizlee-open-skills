@@ -94,6 +94,8 @@ Claude Code 侧 `/workloop <pair>` 不带 goal 时，会按顺序检查：
 ai-relay-bind-cc.ps1 -Pair <pair>
 ai-relay-bind-codex.ps1 -Pair <pair> -CodexSessionId <id>
 ai-workloop.ps1 <pair> [goal...]
+ai-workloop-project.ps1 -Mode add -ProjectRoot <path>
+ai-workloop-project.ps1 -Mode list
 ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode pull
@@ -186,6 +188,14 @@ ai-relay-review.ps1 -Pair bug-typeerror -Format both
 
 ```powershell
 ai-workloop-dashboard.ps1 -ProjectRoot "E:\work\project\faizleecom" -Open
+```
+
+也可以先注册常用项目：
+
+```powershell
+ai-workloop-project.ps1 -Mode add -ProjectRoot "E:\work\project\faizleecom,E:\work\project\faizlee-open-skills"
+ai-workloop-project.ps1 -Mode list
+ai-workloop-dashboard.ps1 -Open
 ```
 
 也可以一次扫描多个项目：
