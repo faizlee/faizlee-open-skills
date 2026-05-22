@@ -339,7 +339,7 @@ Rules:
 - Do not use --last.
 - Reply with one short sentence: Agent Workloop Codex session initialized.
 "@
-  $output = & $codex.Source exec --json --sandbox read-only -C $Project -o $initOut $prompt 2>&1 | Out-String
+  $output = & $codex.Source exec --json --ignore-user-config --sandbox read-only -C $Project -o $initOut $prompt 2>&1 | Out-String
   $exitCode = $LASTEXITCODE
   Set-Content -LiteralPath (Join-Path $pairDir 'codex-session-init.log') -Value $output -Encoding utf8
   if ($exitCode -ne 0) {
@@ -644,7 +644,7 @@ $goal
       $codex = Get-Command codex -ErrorAction SilentlyContinue
       if (-not $codex) { throw "codex CLI not found in PATH." }
       Write-Host ("[{0}] PLAN task project={1} pair={2} codex={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $codexSessionId)
-      $codexOutput = Get-Content -LiteralPath $planPromptPath -Raw -Encoding utf8 | & $codex.Source exec resume $codexSessionId --sandbox read-only -o $planReplyPath - 2>&1 | Out-String
+      $codexOutput = Get-Content -LiteralPath $planPromptPath -Raw -Encoding utf8 | & $codex.Source exec resume $codexSessionId --ignore-user-config --sandbox read-only -o $planReplyPath - 2>&1 | Out-String
       $exitCode = $LASTEXITCODE
       Set-Content -LiteralPath (Join-Path $pairDir 'codex-plan.log') -Value $codexOutput -Encoding utf8
       if ($exitCode -ne 0) {
