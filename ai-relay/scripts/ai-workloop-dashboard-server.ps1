@@ -149,6 +149,8 @@ function New-CcRunnerStatusHtml {
   $statusPath = Join-Path $pairDir 'cc-runner-status.json'
   $outputPath = Join-Path $pairDir 'cc-runner-output.md'
   $streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
+  $runnerStdoutPath = Join-Path $pairDir 'cc-runner-process.stdout.log'
+  $runnerStderrPath = Join-Path $pairDir 'cc-runner-process.stderr.log'
   $reportPath = Join-Path $pairDir 'cc-report.md'
   $status = $null
   if (Test-Path -LiteralPath $statusPath) {
@@ -165,6 +167,20 @@ function New-CcRunnerStatusHtml {
   if ($status -and $status.streamPath) {
     $streamPath = [string]$status.streamPath
   }
+  if ($status -and $status.stdoutPath) {
+    $runnerStdoutPath = [string]$status.stdoutPath
+  }
+  if ($status -and $status.stderrPath) {
+    $runnerStderrPath = [string]$status.stderrPath
+  }
+  $processAlive = $false
+  if ($processId -match '^\d+$') {
+    $processAlive = [bool](Get-Process -Id ([int]$processId) -ErrorAction SilentlyContinue)
+  }
+  if ($statusText -in @('queued','started','running') -and $processId -and -not $processAlive) {
+    $statusText = 'stale'
+    $message = "$message`n`n检测到 runner 进程已经不存在，但状态文件仍是 running。请查看 stderr 日志，必要时重新执行。"
+  }
   $output = ''
   if (Test-Path -LiteralPath $outputPath) {
     $output = Get-Content -LiteralPath $outputPath -Raw -Encoding utf8
@@ -175,6 +191,13 @@ function New-CcRunnerStatusHtml {
   if ([string]::IsNullOrWhiteSpace($output)) {
     $output = "暂无 Claude stdout 输出。Claude CLI 的 --print 模式可能在任务完成后才一次性写入结果。`n`n如果状态仍是 running，请继续等待；也可以查看控制器窗口里的 cc-runner started pid。"
   }
+  $stderr = ''
+  if (Test-Path -LiteralPath $runnerStderrPath) {
+    $stderr = Get-Content -LiteralPath $runnerStderrPath -Raw -Encoding utf8
+    if ($stderr.Length -gt 6000) {
+      $stderr = $stderr.Substring($stderr.Length - 6000)
+    }
+  }
   $reportInfo = if (Test-Path -LiteralPath $reportPath) {
     $item = Get-Item -LiteralPath $reportPath
     "cc-report.md 更新时间：$($item.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))"
@@ -184,6 +207,7 @@ function New-CcRunnerStatusHtml {
   $projectArg = [System.Uri]::EscapeDataString($Project)
   $pairArg = [System.Uri]::EscapeDataString($Pair)
   $refreshUrl = "$($BaseUrl.TrimEnd('/'))/status/cc-runner?projectRoot=$projectArg&pair=$pairArg"
+  $stopUrl = "$($BaseUrl.TrimEnd('/'))/action/cc-runner-stop?projectRoot=$projectArg&pair=$pairArg"
   $refresh = if ($statusText -in @('queued','started','running','unknown')) {
     "<meta http-equiv='refresh' content='2;url=$(Encode-Html $refreshUrl)'>"
   } else {
@@ -206,6 +230,7 @@ function New-CcRunnerStatusHtml {
     dt { color:#65717d; }
     dd { margin:0; overflow-wrap:anywhere; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f6f2; border: 1px solid #e4e6df; border-radius: 6px; padding: 12px; }
+    button { appearance:none; border:1px solid #b76a6a; border-radius:6px; background:#fff4f4; color:#8a2f2f; padding:8px 12px; font:inherit; cursor:pointer; }
     a { color: #176b5d; }
   </style>
 </head>
@@ -221,9 +246,15 @@ function New-CcRunnerStatusHtml {
       <dt>报告状态</dt><dd>$(Encode-Html $reportInfo)</dd>
       <dt>输出文件</dt><dd>$(Encode-Html $outputPath)</dd>
       <dt>原始流</dt><dd>$(Encode-Html $streamPath)</dd>
+      <dt>stderr 日志</dt><dd>$(Encode-Html $runnerStderrPath)</dd>
     </dl>
+    <form method="post" action="$(Encode-Html $stopUrl)" onsubmit="return confirm('确认停止这个 CC runner 进程？');">
+      <button type="submit">停止 CC 执行</button>
+    </form>
     <h2>输出片段</h2>
     <pre>$(Encode-Html $output)</pre>
+    <h2>stderr 片段</h2>
+    <pre>$(Encode-Html $stderr)</pre>
     <p><a href="$(Encode-Html $refreshUrl)">手动刷新</a> · <a href="/">返回 Dashboard</a></p>
   </main>
 </body>
@@ -238,6 +269,18 @@ function Invoke-Captured {
     $output += "`nLASTEXITCODE=$LASTEXITCODE"
   }
   return $output
+}
+
+function Stop-ProcessTreeById {
+  param([Parameter(Mandatory=$true)][int]$ProcessId)
+  $children = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.ParentProcessId -eq $ProcessId })
+  foreach ($child in $children) {
+    Stop-ProcessTreeById -ProcessId ([int]$child.ProcessId)
+  }
+  $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  if ($process) {
+    Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+  }
 }
 
 function Serve-Dashboard {
@@ -310,6 +353,10 @@ function Handle-Action {
       $pairDir = Get-AiRelayPairDir $project $pair
       if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
       $statusPath = Join-Path $pairDir 'cc-runner-status.json'
+      $stdoutPath = Join-Path $pairDir 'cc-runner-process.stdout.log'
+      $stderrPath = Join-Path $pairDir 'cc-runner-process.stderr.log'
+      Set-Content -LiteralPath $stdoutPath -Value '' -Encoding utf8
+      Set-Content -LiteralPath $stderrPath -Value '' -Encoding utf8
       Write-AiRelayJson ([ordered]@{
         pairId = $pair
         projectRoot = $project
@@ -317,6 +364,9 @@ function Handle-Action {
         message = '已收到面板请求，正在启动 Claude Code runner。'
         exitCode = 0
         outputPath = Join-Path $pairDir 'cc-runner-output.md'
+        streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
+        stdoutPath = $stdoutPath
+        stderrPath = $stderrPath
         updatedAt = (Get-Date).ToString('o')
         processId = ''
       }) $statusPath
@@ -331,10 +381,41 @@ function Handle-Action {
         $runnerPath,
         '-Pair',
         $pair
-      ) -WorkingDirectory $project -WindowStyle Hidden -PassThru
+      ) -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
       Write-Host ("[{0}] cc-runner started pid={1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $process.Id)
+      Write-AiRelayJson ([ordered]@{
+        pairId = $pair
+        projectRoot = $project
+        status = 'started'
+        message = '已启动后台 Claude Code runner，等待 runner 写入运行状态。'
+        exitCode = 0
+        outputPath = Join-Path $pairDir 'cc-runner-output.md'
+        streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
+        stdoutPath = $stdoutPath
+        stderrPath = $stderrPath
+        updatedAt = (Get-Date).ToString('o')
+        processId = $process.Id
+      }) $statusPath
       $html = New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix
       Write-HttpText -Response $Response -Text $html
+      return
+    }
+
+    if ($path -eq '/action/cc-runner-stop') {
+      $pairDir = Get-AiRelayPairDir $project $pair
+      $statusPath = Join-Path $pairDir 'cc-runner-status.json'
+      if (-not (Test-Path -LiteralPath $statusPath)) { throw "状态文件不存在：$statusPath" }
+      $status = Get-Content -LiteralPath $statusPath -Raw -Encoding utf8 | ConvertFrom-Json
+      $runnerProcessId = if ($status.processId) { [int]$status.processId } else { 0 }
+      if ($runnerProcessId -gt 0) {
+        Stop-ProcessTreeById -ProcessId $runnerProcessId
+      }
+      $status.status = 'stopped'
+      $status.message = "用户从面板停止了 CC runner。"
+      $status.updatedAt = (Get-Date).ToString('o')
+      Write-AiRelayJson $status $statusPath
+      Write-Host ("[{0}] STOP cc-runner project={1} pair={2} pid={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $runnerProcessId)
+      Write-HttpText -Response $Response -Text (New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix)
       return
     }
 
