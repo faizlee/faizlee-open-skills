@@ -1144,6 +1144,46 @@ Read-Host '按 Enter 关闭窗口'
       if ([string]::IsNullOrWhiteSpace($analyzer)) { $analyzer = 'cc' }
       if ($analyzer -notin @('cc','codex','local')) { throw "不支持的总结分析方式：$analyzer" }
       Write-Host ("[{0}] RUN summary project={1} pair={2} analyzer={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $analyzer)
+      if ($analyzer -eq 'cc') {
+        $powershell = Get-Command powershell -ErrorAction SilentlyContinue
+        if (-not $powershell) { throw "powershell.exe not found." }
+        $summaryScript = Join-Path $PSScriptRoot 'ai-workloop-summary.ps1'
+        $terminalCommand = @"
+`$ErrorActionPreference = 'Continue'
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+  `$OutputEncoding = [System.Text.UTF8Encoding]::new()
+} catch {}
+Set-Location -LiteralPath '$($project.Replace("'", "''"))'
+Write-Host 'Agent Workloop Pair Summary'
+Write-Host 'Pair: $($pair.Replace("'", "''"))'
+Write-Host 'Project: $($project.Replace("'", "''"))'
+Write-Host 'Analyzer: Claude Code foreground'
+Write-Host ''
+Write-Host '下面会调用 Claude Code 分析当前项目和 pair 数据。此窗口用于观看前台执行情况。'
+Write-Host ''
+& '$($summaryScript.Replace("'", "''"))' -Pair '$($pair.Replace("'", "''"))' -Analyzer cc -Format both -Open
+`$exitCode = `$LASTEXITCODE
+Write-Host ''
+if (`$exitCode -eq 0) {
+  Write-Host 'Pair 总结已生成并尝试打开。' -ForegroundColor Green
+} else {
+  Write-Host "Pair 总结失败。ExitCode=`$exitCode" -ForegroundColor Red
+}
+Read-Host '按 Enter 关闭窗口'
+"@
+        $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($terminalCommand))
+        $process = Start-Process -FilePath $powershell.Source -ArgumentList @(
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-EncodedCommand',
+          $encodedCommand
+        ) -WorkingDirectory $project -WindowStyle Normal -PassThru
+        Write-Host ("[{0}] summary cc foreground started pid={1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $process.Id)
+        Write-HttpText -Response $Response -Text (New-ResultHtml '正在启动' "<p>已打开 Claude Code 前台总结窗口。请看新 PowerShell 窗口里的执行过程；结束后会生成并打开 summary/latest HTML。</p><p>进程 ID：$(Encode-Html ([string]$process.Id))</p>")
+        return
+      }
       $output = Invoke-Captured {
         Push-Location $project
         try { & "$PSScriptRoot\ai-workloop-summary.ps1" -Pair $pair -Analyzer $analyzer -Format both -Open } finally { Pop-Location }
