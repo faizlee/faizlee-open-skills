@@ -360,6 +360,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>系统打开 Pair</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")
+    [void]$cards.AppendLine("<button type='button' data-rebind-codex='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-codex")'>绑定/重绑 Codex</button>")
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='归档 Pair 会把目录移动到 .ai-relay/archived-pairs，不会删除数据。确认归档？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/archive-pair?projectRoot=$projectArg&pair=$pairArg")' data-refresh='true'>归档 Pair</button>")
   }
   [void]$cards.AppendLine("</section>")
@@ -425,9 +426,12 @@ if ($controlPrefix) {
         <label>目标
           <input name="task" placeholder="可选，写一句目标">
         </label>
+        <label>Codex Session ID
+          <input name="codexSessionId" placeholder="可选；留空则自动新建">
+        </label>
         <button type="submit">创建 Pair</button>
       </form>
-      <p>扫描会按 .git 和常见工程清单识别项目根；创建会生成 bind-request.md 并复制到剪贴板，随后仍需在 Codex 中完成 /bind。</p>
+      <p>扫描会按 .git 和常见工程清单识别项目根；创建 Pair 时填 Codex Session ID 会直接绑定，留空会自动创建新的 Codex session 后绑定。</p>
     </section>
 "@
 }
@@ -616,6 +620,53 @@ $html = @"
         }
       });
     }
+    document.querySelectorAll('button[data-rebind-codex]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const pair = button.getAttribute('data-pair') || '';
+        const projectRoot = button.getAttribute('data-project') || '';
+        const url = button.getAttribute('data-url') || '';
+        const codexSessionId = window.prompt('输入 Codex Session ID；留空会自动创建新的 Codex session 并绑定。', '');
+        if (codexSessionId === null) return;
+        const resultWindow = window.open('', '_blank');
+        const data = new URLSearchParams();
+        data.set('projectRoot', projectRoot);
+        data.set('pair', pair);
+        data.set('codexSessionId', codexSessionId);
+        const oldText = button.textContent;
+        button.textContent = '绑定中...';
+        button.disabled = true;
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: data.toString()
+          });
+          const text = await response.text();
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write(text);
+            resultWindow.document.close();
+          } else {
+            window.alert(text.replace(/<[^>]+>/g, ''));
+          }
+          if (response.ok) {
+            setTimeout(() => window.location.reload(), 500);
+          }
+        } catch (error) {
+          const errorText = '绑定失败：' + error;
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>绑定失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
+            resultWindow.document.close();
+          } else {
+            window.alert(errorText);
+          }
+        } finally {
+          button.textContent = oldText;
+          button.disabled = false;
+        }
+      });
+    });
     const discoverForm = document.getElementById('discover-projects-form');
     if (discoverForm) {
       discoverForm.addEventListener('submit', async (event) => {

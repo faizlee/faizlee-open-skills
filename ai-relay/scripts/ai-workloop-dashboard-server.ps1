@@ -318,6 +318,40 @@ function Stop-ProcessTreeById {
   }
 }
 
+function New-WorkloopCodexSessionId {
+  param(
+    [Parameter(Mandatory=$true)][string]$Project,
+    [Parameter(Mandatory=$true)][string]$Pair
+  )
+  $codex = Get-Command codex -ErrorAction SilentlyContinue
+  if (-not $codex) { throw "codex CLI not found in PATH." }
+  $pairDir = Get-AiRelayPairDir $Project $Pair
+  New-Item -ItemType Directory -Force -Path $pairDir | Out-Null
+  $initOut = Join-Path $pairDir 'codex-session-init.md'
+  $prompt = @"
+Initialize Agent Workloop pair "$Pair" for this project.
+
+Rules:
+- You are the Codex commander thread for this pair.
+- Do not modify files.
+- Do not use subagents.
+- Do not start codex-with-cc.
+- Do not use --last.
+- Reply with one short sentence: Agent Workloop Codex session initialized.
+"@
+  $output = & $codex.Source exec --json --sandbox read-only -C $Project -o $initOut $prompt 2>&1 | Out-String
+  $exitCode = $LASTEXITCODE
+  Set-Content -LiteralPath (Join-Path $pairDir 'codex-session-init.log') -Value $output -Encoding utf8
+  if ($exitCode -ne 0) {
+    throw "创建 Codex session 失败。ExitCode=$exitCode`n$output"
+  }
+  $matches = [regex]::Matches($output, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
+  if ($matches.Count -lt 1) {
+    throw "创建 Codex session 成功但无法从输出解析 session id。日志：$(Join-Path $pairDir 'codex-session-init.log')"
+  }
+  return $matches[0].Value
+}
+
 function Serve-Dashboard {
   param([System.Net.HttpListenerResponse]$Response, [string]$BaseUrl)
   $outDir = Join-Path $dashboardConfigDir 'server'
@@ -364,14 +398,26 @@ function Handle-Action {
       $project = Assert-AllowedProject ([string]$form['projectRoot'])
       $pair = [string]$form['pair']
       $task = [string]$form['task']
+      $codexSessionId = ([string]$form['codexSessionId']).Trim()
       Assert-AiRelayPairName $pair
       Write-Host ("[{0}] CREATE pair project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
       $output = Invoke-Captured {
         Push-Location $project
         try { & "$PSScriptRoot\ai-relay-bind-cc.ps1" -Pair $pair -Task $task } finally { Pop-Location }
       }
+      $bindOutput = ''
+      if ([string]::IsNullOrWhiteSpace($codexSessionId)) {
+        $codexSessionId = New-WorkloopCodexSessionId -Project $project -Pair $pair
+      }
+      if ($codexSessionId -notmatch '^[0-9a-fA-F-]{20,}$') {
+        throw "Codex Session ID 格式看起来不正确：$codexSessionId"
+      }
+      $bindOutput = Invoke-Captured {
+        Push-Location $project
+        try { & "$PSScriptRoot\ai-relay-bind-codex.ps1" -Pair $pair -CodexSessionId $codexSessionId -Force } finally { Pop-Location }
+      }
       $bindPath = Join-Path (Get-AiRelayPairDir $project $pair) 'bind-request.md'
-      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建' "<p>已创建 Pair，并生成 bind-request.md。内容已尝试复制到剪贴板。</p><pre>$(Encode-Html $output)</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建并绑定' "<p>已创建 Pair，并绑定 Codex session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><pre>$(Encode-Html ($output + "`n" + $bindOutput))</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
       return
     }
 
@@ -389,6 +435,27 @@ function Handle-Action {
         & "$PSScriptRoot\ai-workloop-project.ps1" -Mode discover-add -ScanRoot $scanRoot -Depth $depth
       }
       Write-HttpText -Response $Response -Text (New-ResultHtml '项目扫描完成' "<p>已扫描并添加候选项目。刷新面板后可在项目列表和创建 Pair 下拉框中看到。</p><pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
+    if ($path -eq '/action/rebind-codex') {
+      $form = Get-RequestFormMap $Request
+      $project = Assert-AllowedProject ([string]$form['projectRoot'])
+      $pair = [string]$form['pair']
+      $codexSessionId = ([string]$form['codexSessionId']).Trim()
+      Assert-AiRelayPairName $pair
+      if ([string]::IsNullOrWhiteSpace($codexSessionId)) {
+        $codexSessionId = New-WorkloopCodexSessionId -Project $project -Pair $pair
+      }
+      if ($codexSessionId -notmatch '^[0-9a-fA-F-]{20,}$') {
+        throw "Codex Session ID 格式看起来不正确：$codexSessionId"
+      }
+      Write-Host ("[{0}] REBIND codex project={1} pair={2} session={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $codexSessionId)
+      $output = Invoke-Captured {
+        Push-Location $project
+        try { & "$PSScriptRoot\ai-relay-bind-codex.ps1" -Pair $pair -CodexSessionId $codexSessionId -Force } finally { Pop-Location }
+      }
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Codex 绑定已更新' "<p>Pair 已绑定/重绑到 Codex session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><pre>$(Encode-Html $output)</pre>")
       return
     }
 
