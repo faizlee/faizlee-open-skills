@@ -85,6 +85,9 @@ if (-not $SkipDryRun) {
         throw "Dry-run missing file: $name"
       }
     }
+    if (-not (Test-Path -LiteralPath (Join-Path $pairDir 'codex-reply.read.md'))) {
+      throw "Dry-run missing file: codex-reply.read.md"
+    }
   } finally {
     Pop-Location
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue

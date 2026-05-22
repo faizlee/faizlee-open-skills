@@ -31,6 +31,47 @@ function Test-AiRelayUnreadInbox {
   return ($inbox.Trim() -ne $read.Trim())
 }
 
+function Test-AiRelayUnreadCodexReply {
+  param([string]$PairDir)
+  $replyPath = Join-Path $PairDir 'codex-reply.md'
+  $readPath = Join-Path $PairDir 'codex-reply.read.md'
+  $reply = Read-AiRelayTextFile $replyPath
+  if ([string]::IsNullOrWhiteSpace($reply)) { return $false }
+  $read = Read-AiRelayTextFile $readPath
+  if ($reply.Trim() -eq $read.Trim()) { return $false }
+  $reportPath = Join-Path $PairDir 'cc-report.md'
+  if ((Test-Path -LiteralPath $reportPath) -and (Test-Path -LiteralPath $replyPath)) {
+    return ((Get-Item -LiteralPath $replyPath).LastWriteTime -ge (Get-Item -LiteralPath $reportPath).LastWriteTime)
+  }
+  return $true
+}
+
+function Invoke-AiRelayReadCodexReply {
+  param([string]$PairDir, [string]$PairId)
+  $replyPath = Join-Path $PairDir 'codex-reply.md'
+  $readPath = Join-Path $PairDir 'codex-reply.read.md'
+  $reply = Read-AiRelayTextFile $replyPath
+  if ([string]::IsNullOrWhiteSpace($reply)) {
+    Write-Host "当前没有 Codex 裁决。"
+    return
+  }
+  Set-Content -LiteralPath $readPath -Value $reply -Encoding utf8
+  Add-AiRelayLog -PairDir $PairDir -Event 'cc-read-codex-reply' -Detail "Claude Code read Codex reply for $PairId."
+  [void](Copy-AiRelayText $reply)
+  Write-Output $reply
+}
+
+function Test-AiRelayWaitingForCodexReply {
+  param([string]$PairDir)
+  $reportPath = Join-Path $PairDir 'cc-report.md'
+  $replyPath = Join-Path $PairDir 'codex-reply.md'
+  $report = Read-AiRelayTextFile $reportPath
+  if ([string]::IsNullOrWhiteSpace($report)) { return $false }
+  if (-not (Test-Path -LiteralPath $reportPath)) { return $false }
+  if (-not (Test-Path -LiteralPath $replyPath)) { return $true }
+  return ((Get-Item -LiteralPath $reportPath).LastWriteTime -gt (Get-Item -LiteralPath $replyPath).LastWriteTime)
+}
+
 function Invoke-AiRelayReport {
   param([string]$ProjectRoot, [string]$PairDir, [string]$PairId)
   $pair = Read-AiRelayPairJson $PairDir
@@ -157,10 +198,14 @@ switch ($Mode) {
   'pull' { Invoke-AiRelayPull -PairDir $pairDir -PairId $pairId }
   'report' { Invoke-AiRelayReport -ProjectRoot $projectRoot -PairDir $pairDir -PairId $pairId }
   'auto' {
-    if (Test-AiRelayUnreadInbox -PairDir $pairDir) {
+    if (Test-AiRelayUnreadCodexReply -PairDir $pairDir) {
+      Invoke-AiRelayReadCodexReply -PairDir $pairDir -PairId $pairId
+    } elseif (Test-AiRelayUnreadInbox -PairDir $pairDir) {
       Invoke-AiRelayPull -PairDir $pairDir -PairId $pairId
+    } elseif (Test-AiRelayWaitingForCodexReply -PairDir $pairDir) {
+      Write-Host "cc-report.md 比 codex-reply.md 新，当前正在等待 Codex 裁决。请执行 ai-relay-cc.ps1 -Pair $pairId -Mode report，或等待后台 report 完成。"
     } else {
-      Write-Host "当前没有新的 Codex 指令。请先把本轮压缩报告写入 cc-report.md，然后执行 report。"
+      Write-Host "当前没有新的 Codex 指令或未读裁决。若本轮任务已完成，请把压缩报告写入 cc-report.md，然后执行 ai-relay-cc.ps1 -Pair $pairId -Mode report。"
     }
   }
 }

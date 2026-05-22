@@ -24,6 +24,7 @@ $files = @{
   'cc-report.md' = "# CC Report`n`n## 当前任务`n`n## Claude Code 本轮做了什么`n`n## 修改文件`n`n## 验证结果`n`n## 风险 / 疑问`n`n## 是否可能与其他 pair 冲突`n`n## 需要 Codex 裁决的问题`n"
   'codex-prompt.md' = ''
   'codex-reply.md' = ''
+  'codex-reply.read.md' = ''
   'relay-log.md' = "# AI Relay Log`n"
 }
 

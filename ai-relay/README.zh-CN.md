@@ -80,6 +80,13 @@ Claude Code 拉取并执行：
 
 Claude Code 完成后写 `cc-report.md`，再执行 `/relay` 汇报给 Codex。
 
+Claude Code 侧 `/relay` 的 auto 状态机会按顺序检查：
+
+1. `codex-reply.md` 是否有未读 Codex 裁决。
+2. `cc-inbox.md` 是否有未读新任务。
+3. `cc-report.md` 是否比 `codex-reply.md` 新，若是则提示等待 Codex 裁决。
+4. 否则提示当前没有新消息。
+
 ## 常用命令
 
 ```powershell
@@ -111,6 +118,7 @@ ai-relay-export.ps1 -Pair bug-typeerror -Format both
 - Claude Code 最新汇报
 - 实际发送给 Codex 的完整 prompt
 - Codex 最新回复
+- Claude Code 已读 Codex 裁决标记
 - Relay 时间线
 - 历史归档
 

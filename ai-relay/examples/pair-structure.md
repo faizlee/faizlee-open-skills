@@ -15,6 +15,7 @@
       cc-report.md
       codex-prompt.md
       codex-reply.md
+      codex-reply.read.md
       relay-log.md
       history/
         0001-20260521-154437/

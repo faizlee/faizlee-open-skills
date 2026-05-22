@@ -11,6 +11,7 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 - Binds one pair to one explicit Codex session id and one Claude Code session.
 - Relays Codex instructions to Claude Code through files.
 - Relays compressed Claude Code reports back to Codex.
+- Claude Code auto relay checks unread Codex replies, unread inbox messages, and waiting-for-decision state.
 - Archives every report round and exports Chinese Markdown/HTML audit reports.
 
 ## Hard Boundaries

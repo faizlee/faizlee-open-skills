@@ -75,6 +75,7 @@ $inboxReadPath = Join-Path $pairDir 'cc-inbox.read.md'
 $reportPath = Join-Path $pairDir 'cc-report.md'
 $promptPath = Join-Path $pairDir 'codex-prompt.md'
 $replyPath = Join-Path $pairDir 'codex-reply.md'
+$replyReadPath = Join-Path $pairDir 'codex-reply.read.md'
 $logPath = Join-Path $pairDir 'relay-log.md'
 $historyRoot = Join-Path $pairDir 'history'
 
@@ -102,7 +103,8 @@ Add-MdSection $md '五、Claude Code 已读标记' $inboxReadPath 'markdown'
 Add-MdSection $md '六、Claude Code 最新汇报' $reportPath 'markdown'
 Add-MdSection $md '七、实际发送给 Codex 的完整 Prompt' $promptPath 'markdown'
 Add-MdSection $md '八、Codex 最新回复' $replyPath 'markdown'
-Add-MdSection $md '九、Relay 时间线' $logPath 'markdown'
+Add-MdSection $md '九、Claude Code 已读 Codex 裁决标记' $replyReadPath 'markdown'
+Add-MdSection $md '十、Relay 时间线' $logPath 'markdown'
 
 [void]$md.AppendLine("")
 [void]$md.AppendLine("## 十、历史归档")
@@ -153,7 +155,8 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
     @{ Title = '六、Claude Code 最新汇报'; Path = $reportPath },
     @{ Title = '七、实际发送给 Codex 的完整 Prompt'; Path = $promptPath },
     @{ Title = '八、Codex 最新回复'; Path = $replyPath },
-    @{ Title = '九、Relay 时间线'; Path = $logPath }
+    @{ Title = '九、Claude Code 已读 Codex 裁决标记'; Path = $replyReadPath },
+    @{ Title = '十、Relay 时间线'; Path = $logPath }
   )
   $body = [System.Text.StringBuilder]::new()
   foreach ($section in $htmlSections) {
@@ -165,7 +168,7 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
     [void]$body.AppendLine("</section>")
   }
   [void]$body.AppendLine("<section>")
-  [void]$body.AppendLine("<h2>十、历史归档</h2>")
+  [void]$body.AppendLine("<h2>十一、历史归档</h2>")
   if (Test-Path -LiteralPath $historyRoot) {
     $historyDirs = Get-ChildItem -LiteralPath $historyRoot -Directory | Sort-Object Name
     if ($historyDirs) {
