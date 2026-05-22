@@ -525,9 +525,8 @@ function Handle-Action {
       Write-Host ("[{0}] CREATE pair project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
       $ccInitOutput = ''
       if ([string]::IsNullOrWhiteSpace($ccSessionId)) {
-        $ccInit = New-WorkloopClaudeSessionId -Project $project -Pair $pair
-        $ccSessionId = $ccInit.SessionId
-        $ccInitOutput = $ccInit.Output
+        $ccSessionId = ''
+        $ccInitOutput = 'Claude Code session id was not pre-created. The dashboard runner will open a new native Claude Code terminal when executing this pair.'
       }
       $output = Invoke-Captured {
         Push-Location $project
@@ -548,7 +547,8 @@ function Handle-Action {
         try { & "$PSScriptRoot\ai-relay-bind-codex.ps1" -Pair $pair -CodexSessionId $codexSessionId -Force } finally { Pop-Location }
       }
       $bindPath = Join-Path (Get-AiRelayPairDir $project $pair) 'bind-request.md'
-      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建并绑定' "<p>已创建 Pair，并绑定 Codex / Claude Code session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><p>Claude Code session id: <code>$(Encode-Html $ccSessionId)</code></p><pre>$(Encode-Html ($output + "`n" + $bindOutput))</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
+      $ccBindLabel = if ([string]::IsNullOrWhiteSpace($ccSessionId)) { '未预绑定；执行时打开新的 Claude Code 原生终端' } else { $ccSessionId }
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建并绑定' "<p>已创建 Pair，并绑定 Codex。Claude Code 可在执行时启动原生终端。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><p>Claude Code session: <code>$(Encode-Html $ccBindLabel)</code></p><pre>$(Encode-Html ($output + "`n" + $bindOutput))</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
       return
     }
 
@@ -764,19 +764,20 @@ Read-Host 'Codex 终端已退出，按 Enter 关闭窗口'
       Assert-AiRelayPairName $pair
       $ccInitOutput = ''
       if ([string]::IsNullOrWhiteSpace($ccSessionId)) {
-        $ccInit = New-WorkloopClaudeSessionId -Project $project -Pair $pair
-        $ccSessionId = $ccInit.SessionId
-        $ccInitOutput = $ccInit.Output
+        $ccSessionId = ''
+        $ccInitOutput = 'Claude Code session id was cleared. The dashboard runner will open a new native Claude Code terminal when executing this pair.'
       }
-      if ($ccSessionId -notmatch '^[0-9a-fA-F-]{20,}$') {
+      if (-not [string]::IsNullOrWhiteSpace($ccSessionId) -and $ccSessionId -notmatch '^[0-9a-fA-F-]{20,}$') {
         throw "Claude Code Session ID 格式看起来不正确：$ccSessionId"
       }
-      Write-Host ("[{0}] REBIND cc project={1} pair={2} session={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $ccSessionId)
+      $ccSessionForLog = if ([string]::IsNullOrWhiteSpace($ccSessionId)) { '<new-terminal-on-run>' } else { $ccSessionId }
+      Write-Host ("[{0}] REBIND cc project={1} pair={2} session={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $ccSessionForLog)
       Set-WorkloopCcSessionId -Project $project -Pair $pair -CcSessionId $ccSessionId
       if ($ccInitOutput) {
         Set-Content -LiteralPath (Join-Path (Get-AiRelayPairDir $project $pair) 'cc-session-init.log') -Value $ccInitOutput -Encoding utf8
       }
-      Write-HttpText -Response $Response -Text (New-ResultHtml 'Claude Code 绑定已更新' "<p>Pair 已绑定/重绑到 Claude Code session。</p><p>Claude Code session id: <code>$(Encode-Html $ccSessionId)</code></p>")
+      $ccBindLabel = if ([string]::IsNullOrWhiteSpace($ccSessionId)) { '未预绑定；执行时打开新的 Claude Code 原生终端' } else { $ccSessionId }
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Claude Code 绑定已更新' "<p>Pair 的 Claude Code 执行方式已更新。</p><p>Claude Code session: <code>$(Encode-Html $ccBindLabel)</code></p>")
       return
     }
 
@@ -848,11 +849,6 @@ Write-Host ''
 `$pairJson = Get-Content -LiteralPath `$pairJsonPath -Raw -Encoding utf8 | ConvertFrom-Json
 `$ccSessionId = [string]`$pairJson.ccSessionId
 `$sourceText = Get-Content -LiteralPath `$sourcePath -Raw -Encoding utf8
-if ([string]::IsNullOrWhiteSpace(`$ccSessionId)) {
-  Write-Host 'pair.json 缺少 ccSessionId，请先 rebind。' -ForegroundColor Red
-  Read-Host '按 Enter 关闭窗口'
-  exit 1
-}
 if ([string]::IsNullOrWhiteSpace(`$sourceText)) {
   Write-Host 'cc-inbox.md 为空，没有可执行任务。' -ForegroundColor Yellow
   Read-Host '按 Enter 关闭窗口'
@@ -897,10 +893,23 @@ if (-not `$claude) {
   Read-Host '按 Enter 关闭窗口'
   exit 1
 }
-Write-Host "Resuming Claude Code session: `$ccSessionId"
+if ([string]::IsNullOrWhiteSpace(`$ccSessionId)) {
+  Write-Host '没有预绑定 Claude Code session，将打开新的 Claude Code 原生终端。'
+} else {
+  Write-Host "Resuming Claude Code session: `$ccSessionId"
+}
 Write-Host '下面是 Claude Code 原生终端输出。'
 Write-Host ''
-& `$claude.Source --resume `$ccSessionId --permission-mode default `$prompt
+if ([string]::IsNullOrWhiteSpace(`$ccSessionId)) {
+  & `$claude.Source --name 'workloop-$($pair.Replace("'", "''"))' --permission-mode default `$prompt
+} else {
+  & `$claude.Source --resume `$ccSessionId --permission-mode default `$prompt
+  if (`$LASTEXITCODE -ne 0) {
+    Write-Host ''
+    Write-Host '恢复 Claude Code session 失败，可能是这个 session id 不在本机 Claude 历史里。现在改为打开新的 Claude Code 原生终端执行同一任务。' -ForegroundColor Yellow
+    & `$claude.Source --name 'workloop-$($pair.Replace("'", "''"))' --permission-mode default `$prompt
+  }
+}
 `$exitCode = `$LASTEXITCODE
 try {
   `$status.status = if (`$exitCode -eq 0) { 'completed' } else { 'failed' }
