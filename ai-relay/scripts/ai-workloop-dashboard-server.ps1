@@ -358,6 +358,81 @@ function Get-ActiveCcRunnerStatus {
   return $null
 }
 
+function Test-WorkloopServerUnreadFile {
+  param(
+    [Parameter(Mandatory=$true)][string]$SourcePath,
+    [Parameter(Mandatory=$true)][string]$ReadPath
+  )
+  $source = Read-AiRelayTextFile $SourcePath
+  if ([string]::IsNullOrWhiteSpace($source)) { return $false }
+  if ((Test-Path -LiteralPath $SourcePath) -and (Test-Path -LiteralPath $ReadPath)) {
+    if ((Get-Item -LiteralPath $ReadPath).LastWriteTime -ge (Get-Item -LiteralPath $SourcePath).LastWriteTime) {
+      return $false
+    }
+  }
+  $read = Read-AiRelayTextFile $ReadPath
+  $normalizedSource = ($source -replace "^\uFEFF", '' -replace "`r`n", "`n").Trim()
+  $normalizedRead = ($read -replace "^\uFEFF", '' -replace "`r`n", "`n").Trim()
+  return ($normalizedSource -ne $normalizedRead)
+}
+
+function Get-WorkloopRoute {
+  param([Parameter(Mandatory=$true)][string]$PairDir)
+  $inboxPath = Join-Path $PairDir 'cc-inbox.md'
+  $inboxReadPath = Join-Path $PairDir 'cc-inbox.read.md'
+  $reportPath = Join-Path $PairDir 'cc-report.md'
+  $replyPath = Join-Path $PairDir 'codex-reply.md'
+  $replyReadPath = Join-Path $PairDir 'codex-reply.read.md'
+
+  $report = Read-AiRelayTextFile $reportPath
+  $reportReady = $false
+  if (-not [string]::IsNullOrWhiteSpace($report) -and (Test-Path -LiteralPath $reportPath)) {
+    $replyMissing = -not (Test-Path -LiteralPath $replyPath)
+    $reportReady = $replyMissing -or ((Get-Item -LiteralPath $reportPath).LastWriteTime -gt (Get-Item -LiteralPath $replyPath).LastWriteTime)
+  }
+  if ($reportReady) {
+    return [pscustomobject]@{
+      Action = 'send-report'
+      Source = ''
+      SourcePath = $reportPath
+      ReadPath = ''
+      Message = 'cc-report.md 比 codex-reply.md 新，下一步是送 Codex 裁决，不应重复执行 CC。'
+    }
+  }
+
+  $replyUnread = Test-WorkloopServerUnreadFile -SourcePath $replyPath -ReadPath $replyReadPath
+  if ($replyUnread -and (Test-Path -LiteralPath $replyPath)) {
+    if ((-not (Test-Path -LiteralPath $reportPath)) -or ((Get-Item -LiteralPath $replyPath).LastWriteTime -ge (Get-Item -LiteralPath $reportPath).LastWriteTime)) {
+      return [pscustomobject]@{
+        Action = 'run-cc'
+        Source = 'codex-reply'
+        SourcePath = $replyPath
+        ReadPath = $replyReadPath
+        Message = '发现未读 Codex 裁决，下一步让 CC 执行 codex-reply.md。'
+      }
+    }
+  }
+
+  $inboxUnread = Test-WorkloopServerUnreadFile -SourcePath $inboxPath -ReadPath $inboxReadPath
+  if ($inboxUnread) {
+    return [pscustomobject]@{
+      Action = 'run-cc'
+      Source = 'cc-inbox'
+      SourcePath = $inboxPath
+      ReadPath = $inboxReadPath
+      Message = '发现未读 Codex 任务，下一步让 CC 执行 cc-inbox.md。'
+    }
+  }
+
+  return [pscustomobject]@{
+    Action = 'idle'
+    Source = ''
+    SourcePath = ''
+    ReadPath = ''
+    Message = '当前没有待送审报告、未读 Codex 裁决或未读任务。'
+  }
+}
+
 function New-WorkloopCodexSessionId {
   param(
     [Parameter(Mandatory=$true)][string]$Project,
@@ -856,6 +931,21 @@ Read-Host 'Codex 终端已退出，按 Enter 关闭窗口'
         Write-HttpText -Response $Response -Text (New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix)
         return
       }
+      $route = Get-WorkloopRoute -PairDir $pairDir
+      if ($route.Action -eq 'send-report') {
+        Write-Host ("[{0}] ROUTE cc-runner to workloop report project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
+        $output = Invoke-Captured {
+          Push-Location $project
+          try { & "$PSScriptRoot\ai-workloop.ps1" $pair } finally { Pop-Location }
+        }
+        Write-HttpText -Response $Response -Text (New-ResultHtml '已按状态机送审' "<p>$(Encode-Html $route.Message)</p><pre>$(Encode-Html $output)</pre>")
+        return
+      }
+      if ($route.Action -eq 'idle') {
+        Write-Host ("[{0}] ROUTE cc-runner idle project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
+        Write-HttpText -Response $Response -Text (New-ResultHtml '无可执行任务' "<p>$(Encode-Html $route.Message)</p><p>请先让 Codex 规划任务，或让 CC 完成任务后写入 cc-report.md。</p>")
+        return
+      }
       $runId = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
       $stdoutPath = Join-Path $pairDir "cc-runner-process-$runId.stdout.log"
       $stderrPath = Join-Path $pairDir "cc-runner-process-$runId.stderr.log"
@@ -863,7 +953,7 @@ Read-Host 'Codex 终端已退出，按 Enter 关闭窗口'
         pairId = $pair
         projectRoot = $project
         status = 'queued'
-        message = '已收到面板请求，正在启动 Claude Code runner。'
+        message = "已收到面板请求，按状态机路由：$($route.Message)"
         exitCode = 0
         outputPath = Join-Path $pairDir 'cc-runner-output.md'
         streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
@@ -891,7 +981,9 @@ Write-Host 'Mode: Claude Code native terminal'
 Write-Host ''
 `$pairDir = '$($pairDir.Replace("'", "''"))'
 `$pairJsonPath = Join-Path `$pairDir 'pair.json'
-`$sourcePath = Join-Path `$pairDir 'cc-inbox.md'
+`$sourcePath = '$([string]$route.SourcePath -replace "'", "''")'
+`$readPath = '$([string]$route.ReadPath -replace "'", "''")'
+`$sourceLabel = '$([string]$route.Source -replace "'", "''")'
 `$statusPath = Join-Path `$pairDir 'cc-runner-status.json'
 `$pairJson = Get-Content -LiteralPath `$pairJsonPath -Raw -Encoding utf8 | ConvertFrom-Json
 `$ccSessionId = [string]`$pairJson.ccSessionId
@@ -905,7 +997,7 @@ if ([string]::IsNullOrWhiteSpace(`$sourceText)) {
   pairId = '$($pair.Replace("'", "''"))'
   projectRoot = '$($project.Replace("'", "''"))'
   status = 'running'
-  message = '已打开 Claude Code 原生终端执行任务。'
+  message = "已打开 Claude Code 原生终端执行 `$sourceLabel。"
   exitCode = 0
   outputPath = '$($runnerOutputPath.Replace("'", "''"))'
   streamPath = '$($runnerStreamPath.Replace("'", "''"))'
@@ -915,6 +1007,9 @@ if ([string]::IsNullOrWhiteSpace(`$sourceText)) {
   processId = `$PID
 }
 `$status | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath `$statusPath -Encoding utf8
+if (-not [string]::IsNullOrWhiteSpace(`$readPath)) {
+  try { Set-Content -LiteralPath `$readPath -Value `$sourceText -Encoding utf8 } catch {}
+}
 `$prompt = @(
   'You are the Claude Code execution agent for Agent Workloop pair "$($pair.Replace("'", "''"))".',
   '',
@@ -1002,7 +1097,7 @@ Read-Host '按 Enter 关闭窗口'
         pairId = $pair
         projectRoot = $project
         status = 'started'
-        message = '已启动 Claude Code 原生终端，等待终端写入运行状态。'
+        message = "已启动 Claude Code 原生终端，按状态机执行 $($route.Source)，等待终端写入运行状态。"
         exitCode = 0
         outputPath = Join-Path $pairDir 'cc-runner-output.md'
         streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'

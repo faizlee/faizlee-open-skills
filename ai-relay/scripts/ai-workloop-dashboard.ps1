@@ -195,7 +195,18 @@ function Get-WorkloopPairRow {
   if (Test-Path -LiteralPath $historyRoot) {
     $historyCount = @(Get-ChildItem -LiteralPath $historyRoot -Directory -ErrorAction SilentlyContinue).Count
   }
-  $sourceText = Read-WorkloopText $inboxPath
+  $nextSource = '无'
+  $sourceText = ''
+  if ($reportReady) {
+    $nextSource = 'cc-report.md -> Codex'
+    $sourceText = Read-WorkloopText $reportPath
+  } elseif ($unreadReply) {
+    $nextSource = 'codex-reply.md'
+    $sourceText = Read-WorkloopText $replyPath
+  } elseif ($unreadInbox) {
+    $nextSource = 'cc-inbox.md'
+    $sourceText = Read-WorkloopText $inboxPath
+  }
   $sourceChars = if ($sourceText) { $sourceText.Length } else { 0 }
   $runnerStatusText = if ($runnerStatus -and $runnerStatus.status) { [string]$runnerStatus.status } else { '' }
   $runnerUpdatedAt = if ($runnerStatus -and $runnerStatus.updatedAt) { [string]$runnerStatus.updatedAt } else { '' }
@@ -229,7 +240,7 @@ function Get-WorkloopPairRow {
     HistoryCount = $historyCount
     CcRunnerStatus = $runnerStatusText
     CcRunnerUpdatedAt = $runnerUpdatedAt
-    CcRunnerSource = 'cc-inbox.md'
+    CcRunnerSource = $nextSource
     CcRunnerSourceChars = $sourceChars
     CcRunnerBudget = '不设置上限'
     PairDir = $PairDir
@@ -343,7 +354,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     $replyPathArg = Encode-WorkloopUrl $row.ReplyPath
     $historyPathArg = Encode-WorkloopUrl $row.HistoryDir
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='执行 /workloop 可能调用 Codex 并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/workloop?projectRoot=$projectArg&pair=$pairArg")'>执行 /workloop</button>")
-    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='让 Claude Code 执行会调用 Claude CLI，可能修改文件并消耗额度，并会打开一个只读观看终端。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")' data-status-url='$(Encode-WorkloopHtml "$controlPrefix/status/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>让 CC 执行并打开终端</button>")
+    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='按状态机继续：可能送 Codex 裁决，或调用 Claude CLI 执行未读任务/裁决。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")' data-status-url='$(Encode-WorkloopHtml "$controlPrefix/status/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>继续（自动路由）</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>打开 Pair</button>")
     if (Test-Path -LiteralPath $row.ReportPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$reportPathArg")'>打开报告</button>") }
     if (Test-Path -LiteralPath $row.ReplyPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$replyPathArg")'>打开裁决</button>") }
