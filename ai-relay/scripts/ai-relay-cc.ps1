@@ -27,8 +27,15 @@ function Test-AiRelayUnreadInbox {
   $readPath = Join-Path $PairDir 'cc-inbox.read.md'
   $inbox = Read-AiRelayTextFile $inboxPath
   if ([string]::IsNullOrWhiteSpace($inbox)) { return $false }
+  if ((Test-Path -LiteralPath $readPath) -and (Test-Path -LiteralPath $inboxPath)) {
+    if ((Get-Item -LiteralPath $readPath).LastWriteTime -ge (Get-Item -LiteralPath $inboxPath).LastWriteTime) {
+      return $false
+    }
+  }
   $read = Read-AiRelayTextFile $readPath
-  return ($inbox.Trim() -ne $read.Trim())
+  $normalizedInbox = ($inbox -replace "^\uFEFF", '' -replace "`r`n", "`n").Trim()
+  $normalizedRead = ($read -replace "^\uFEFF", '' -replace "`r`n", "`n").Trim()
+  return ($normalizedInbox -ne $normalizedRead)
 }
 
 function Test-AiRelayUnreadCodexReply {
@@ -37,8 +44,15 @@ function Test-AiRelayUnreadCodexReply {
   $readPath = Join-Path $PairDir 'codex-reply.read.md'
   $reply = Read-AiRelayTextFile $replyPath
   if ([string]::IsNullOrWhiteSpace($reply)) { return $false }
+  if ((Test-Path -LiteralPath $readPath) -and (Test-Path -LiteralPath $replyPath)) {
+    if ((Get-Item -LiteralPath $readPath).LastWriteTime -ge (Get-Item -LiteralPath $replyPath).LastWriteTime) {
+      return $false
+    }
+  }
   $read = Read-AiRelayTextFile $readPath
-  if ($reply.Trim() -eq $read.Trim()) { return $false }
+  $normalizedReply = ($reply -replace "^\uFEFF", '' -replace "`r`n", "`n").Trim()
+  $normalizedRead = ($read -replace "^\uFEFF", '' -replace "`r`n", "`n").Trim()
+  if ($normalizedReply -eq $normalizedRead) { return $false }
   $reportPath = Join-Path $PairDir 'cc-report.md'
   if ((Test-Path -LiteralPath $reportPath) -and (Test-Path -LiteralPath $replyPath)) {
     return ((Get-Item -LiteralPath $replyPath).LastWriteTime -ge (Get-Item -LiteralPath $reportPath).LastWriteTime)
