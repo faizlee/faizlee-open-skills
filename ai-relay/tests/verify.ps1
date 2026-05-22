@@ -12,6 +12,7 @@ $required = @(
   'ai-workloop-dashboard-server.ps1',
   'ai-workloop-cc-runner.ps1',
   'ai-workloop-project.ps1',
+  'ai-workloop-rebind-cc.ps1',
   'ai-workloop.ps1',
   'ai-relay-bind-cc.ps1',
   'ai-relay-bind-codex.ps1',
@@ -93,6 +94,37 @@ if (-not $SkipDryRun) {
     }
     if (-not (Test-Path -LiteralPath (Join-Path $pairDir 'codex-reply.read.md'))) {
       throw "Dry-run missing file: codex-reply.read.md"
+    }
+    $sentinel = "preserve report $(New-Guid)"
+    Set-Content -LiteralPath (Join-Path $pairDir 'cc-report.md') -Value $sentinel -Encoding utf8
+    @{
+      pairId = 'verify-dryrun'
+      projectRoot = $tmp
+      task = 'verify dry run'
+      codexSessionId = 'codex-session-for-verify'
+      ccSessionId = ''
+      ccSessionName = ''
+      ccInboxPath = Join-Path $pairDir 'cc-inbox.md'
+      ccReportPath = Join-Path $pairDir 'cc-report.md'
+      codexReplyPath = Join-Path $pairDir 'codex-reply.md'
+      role = 'commander'
+      boundAt = (Get-Date).ToString('o')
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $pairDir 'pair.json') -Encoding utf8
+    & (Join-Path $scripts 'ai-workloop-rebind-cc.ps1') -Pair 'verify-dryrun' -CcSessionId 'claude-session-for-verify' | Out-Null
+    $rebuilt = Get-Content -LiteralPath (Join-Path $pairDir 'pair.json') -Raw -Encoding utf8 | ConvertFrom-Json
+    if ($rebuilt.ccSessionId -ne 'claude-session-for-verify') {
+      throw "Rebind dry-run did not update ccSessionId."
+    }
+    if ($rebuilt.codexSessionId -ne 'codex-session-for-verify') {
+      throw "Rebind dry-run should preserve codexSessionId."
+    }
+    $reportAfterRebind = Get-Content -LiteralPath (Join-Path $pairDir 'cc-report.md') -Raw -Encoding utf8
+    if ($reportAfterRebind -notmatch [regex]::Escape($sentinel)) {
+      throw "Rebind dry-run should preserve cc-report.md."
+    }
+    $bindAfterRebind = Get-Content -LiteralPath (Join-Path $pairDir 'bind-request.md') -Raw -Encoding utf8
+    if (-not $bindAfterRebind.Contains('ccSessionId: claude-session-for-verify')) {
+      throw "Rebind dry-run did not write ccSessionId into bind-request.md."
     }
   } finally {
     Pop-Location

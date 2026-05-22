@@ -12,6 +12,9 @@
 2. 生成 bind-request.md。
 3. 复制 bind-request.md 到剪贴板。
 4. 告诉用户：如果 Codex 在同一项目工作区，可直接在 Codex 中执行 /bind <pair>；否则把剪贴板内容粘贴到对应 Codex 会话，并执行 /bind <pair>。
+5. 如果用户说这是已有 pair，只是要补充或刷新 Claude Code session id，不要使用 -Force 重新 bind；调用：
+   ai-workloop-rebind-cc.ps1 -Pair <pair> -CcSessionId <当前 Claude Code session id>
+   这个脚本会保留已有 cc-report.md、codex-reply.md、relay-log.md 和 codexSessionId。
 
 ## /workloop <pair> [goal]
 当用户输入 /workloop：

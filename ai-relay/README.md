@@ -36,6 +36,7 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 
 ```powershell
 ai-relay-bind-cc.ps1 -Pair <pair>
+ai-workloop-rebind-cc.ps1 -Pair <pair> -CcSessionId <claude-session-id>
 ai-workloop.ps1 <pair> [goal...]
 ai-workloop-project.ps1 -Mode add -ProjectRoot <path>
 ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open

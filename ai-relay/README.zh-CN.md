@@ -92,6 +92,7 @@ Claude Code 侧 `/workloop <pair>` 不带 goal 时，会按顺序检查：
 
 ```powershell
 ai-relay-bind-cc.ps1 -Pair <pair>
+ai-workloop-rebind-cc.ps1 -Pair <pair> -CcSessionId <claude-session-id>
 ai-relay-bind-codex.ps1 -Pair <pair> -CodexSessionId <id>
 ai-workloop.ps1 <pair> [goal...]
 ai-workloop-project.ps1 -Mode add -ProjectRoot <path>
@@ -117,6 +118,14 @@ Claude Code slash command：
 /bind <pair>
 /workloop <pair> [goal]
 ```
+
+已有 pair 只需要补充或刷新 Claude Code 会话 id 时，不要用 `-Force` 重新绑定，直接运行：
+
+```powershell
+ai-workloop-rebind-cc.ps1 -Pair <pair> -CcSessionId <claude-session-id>
+```
+
+它会更新 `bind-request.md` 和 `pair.json` 里的 `ccSessionId` / `ccSessionName`，保留已有 `codexSessionId`、报告、回复和历史。
 
 ## 审计报告
 
