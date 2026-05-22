@@ -476,21 +476,33 @@ $html = @"
         if (message && !window.confirm(message)) return;
         const url = button.getAttribute('data-post');
         const oldText = button.textContent;
+        const resultWindow = window.open('', '_blank');
+        if (resultWindow) {
+          resultWindow.document.open();
+          resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>执行中</title><style>body{font-family:Segoe UI,system-ui,sans-serif;margin:24px;color:#1f2933;background:#f7f7f4}main{max-width:980px;margin:0 auto;background:#fff;border:1px solid #d8ddd8;border-radius:8px;padding:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f6f2;border:1px solid #e4e6df;border-radius:6px;padding:12px}</style></head><body><main><h1>正在执行</h1><pre>请求已发送到本地 Workloop 控制器，请等待结果返回。Claude Code 执行可能需要较长时间。</pre></main></body></html>');
+          resultWindow.document.close();
+        }
         button.textContent = '执行中...';
         button.disabled = true;
         try {
           const response = await fetch(url, { method: 'POST' });
           const text = await response.text();
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.open();
-            win.document.write(text);
-            win.document.close();
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write(text);
+            resultWindow.document.close();
           } else {
             window.alert(text.replace(/<[^>]+>/g, ''));
           }
         } catch (error) {
-          window.alert('执行失败：' + error);
+          const errorText = '执行失败：' + error;
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>执行失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
+            resultWindow.document.close();
+          } else {
+            window.alert(errorText);
+          }
         } finally {
           button.textContent = oldText;
           button.disabled = false;
