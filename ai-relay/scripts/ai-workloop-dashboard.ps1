@@ -343,7 +343,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     $replyPathArg = Encode-WorkloopUrl $row.ReplyPath
     $historyPathArg = Encode-WorkloopUrl $row.HistoryDir
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='执行 /workloop 可能调用 Codex 并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/workloop?projectRoot=$projectArg&pair=$pairArg")'>执行 /workloop</button>")
-    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='让 Claude Code 执行会调用 Claude CLI，可能修改文件并消耗额度，并会打开一个只读观看终端。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>让 CC 执行并打开终端</button>")
+    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='让 Claude Code 执行会调用 Claude CLI，可能修改文件并消耗额度，并会打开一个只读观看终端。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")' data-status-url='$(Encode-WorkloopHtml "$controlPrefix/status/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>让 CC 执行并打开终端</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>打开 Pair</button>")
     if (Test-Path -LiteralPath $row.ReportPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$reportPathArg")'>打开报告</button>") }
     if (Test-Path -LiteralPath $row.ReplyPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$replyPathArg")'>打开裁决</button>") }
@@ -553,18 +553,29 @@ $html = @"
         const message = button.getAttribute('data-confirm');
         if (message && !window.confirm(message)) return;
         const url = button.getAttribute('data-post');
+        const statusUrl = button.getAttribute('data-status-url');
         const oldText = button.textContent;
         const resultWindow = window.open('', '_blank');
+        let responseFinished = false;
         if (resultWindow) {
           resultWindow.document.open();
-          resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>执行中</title><style>body{font-family:Segoe UI,system-ui,sans-serif;margin:24px;color:#1f2933;background:#f7f7f4}main{max-width:980px;margin:0 auto;background:#fff;border:1px solid #d8ddd8;border-radius:8px;padding:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f6f2;border:1px solid #e4e6df;border-radius:6px;padding:12px}</style></head><body><main><h1>正在执行</h1><pre>请求已发送到本地 Workloop 控制器，请等待结果返回。Claude Code 执行可能需要较长时间。</pre></main></body></html>');
+          const statusLink = statusUrl ? '<p><a href="' + statusUrl.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '">打开执行状态页</a></p>' : '';
+          resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>正在启动</title><style>body{font-family:Segoe UI,system-ui,sans-serif;margin:24px;color:#1f2933;background:#f7f7f4}main{max-width:980px;margin:0 auto;background:#fff;border:1px solid #d8ddd8;border-radius:8px;padding:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f6f2;border:1px solid #e4e6df;border-radius:6px;padding:12px}a{color:#176b5d}</style></head><body><main><h1>正在启动</h1><pre>已发送请求，正在启动本地 Workloop 控制器和 Claude Code 终端。这个页面会自动切到状态页。</pre>' + statusLink + '</main></body></html>');
           resultWindow.document.close();
+          if (statusUrl) {
+            setTimeout(() => {
+              if (!responseFinished && !resultWindow.closed) {
+                resultWindow.location.href = statusUrl;
+              }
+            }, 1200);
+          }
         }
         button.textContent = '执行中...';
         button.disabled = true;
         try {
           const response = await fetch(url, { method: 'POST' });
           const text = await response.text();
+          responseFinished = true;
           if (resultWindow) {
             resultWindow.document.open();
             resultWindow.document.write(text);
