@@ -6,12 +6,19 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\_ai-relay-common.ps1"
 
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+} catch {
+}
+
 function Invoke-AiRelayPull {
   param([string]$PairDir, [string]$PairId)
   $inboxPath = Join-Path $PairDir 'cc-inbox.md'
   $readPath = Join-Path $PairDir 'cc-inbox.read.md'
   $content = Read-AiRelayTextFile $inboxPath
   if ([string]::IsNullOrWhiteSpace($content)) {
+    Write-Output "AI_RELAY_STATUS=NO_INBOX"
     Write-Host "当前没有新的 Codex 指令。"
     return
   }
@@ -66,6 +73,7 @@ function Invoke-AiRelayReadCodexReply {
   $readPath = Join-Path $PairDir 'codex-reply.read.md'
   $reply = Read-AiRelayTextFile $replyPath
   if ([string]::IsNullOrWhiteSpace($reply)) {
+    Write-Output "AI_RELAY_STATUS=NO_CODEX_REPLY"
     Write-Host "当前没有 Codex 裁决。"
     return
   }
@@ -213,13 +221,19 @@ switch ($Mode) {
   'report' { Invoke-AiRelayReport -ProjectRoot $projectRoot -PairDir $pairDir -PairId $pairId }
   'auto' {
     if (Test-AiRelayUnreadCodexReply -PairDir $pairDir) {
+      Write-Output "AI_RELAY_STATUS=CODEX_REPLY_UNREAD"
       Invoke-AiRelayReadCodexReply -PairDir $pairDir -PairId $pairId
     } elseif (Test-AiRelayUnreadInbox -PairDir $pairDir) {
+      Write-Output "AI_RELAY_STATUS=CC_INBOX_UNREAD"
       Invoke-AiRelayPull -PairDir $pairDir -PairId $pairId
     } elseif (Test-AiRelayWaitingForCodexReply -PairDir $pairDir) {
+      Write-Output "AI_RELAY_STATUS=WAITING_FOR_CODEX"
+      Write-Output "AI_RELAY_ACTION=WAIT_OR_RUN_REPORT"
       Write-Host "cc-report.md 比 codex-reply.md 新，当前正在等待 Codex 裁决。请执行 ai-relay-cc.ps1 -Pair $pairId -Mode report，或等待后台 report 完成。"
     } else {
-      Write-Host "当前没有新的 Codex 指令或未读裁决。若本轮任务已完成，请把压缩报告写入 cc-report.md，然后执行 ai-relay-cc.ps1 -Pair $pairId -Mode report。"
+      Write-Output "AI_RELAY_STATUS=IDLE"
+      Write-Output "AI_RELAY_ACTION=NO_NEW_MESSAGE"
+      Write-Host "当前没有新的 Codex 指令或未读裁决。只有在你完成了新的本轮任务后，才需要写 cc-report.md 并执行 ai-relay-cc.ps1 -Pair $pairId -Mode report。"
     }
   }
 }

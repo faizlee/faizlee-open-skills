@@ -11,6 +11,13 @@ Run exactly this from the current project root:
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-cc.ps1" -Pair "$ARGUMENTS" -Mode auto
 
+Interpret the machine-readable status first:
+
+- `AI_RELAY_STATUS=CODEX_REPLY_UNREAD`: read and follow the Codex reply printed by the script.
+- `AI_RELAY_STATUS=CC_INBOX_UNREAD`: read and execute the task printed by the script.
+- `AI_RELAY_STATUS=WAITING_FOR_CODEX`: a report is newer than the reply; wait or run report if it has not been sent.
+- `AI_RELAY_STATUS=IDLE`: no new message and no unread decision; do not claim it is waiting for Codex.
+
 Only if the script explicitly says the current task is complete and a report is needed, write the compressed report to .ai-relay/pairs/<pair>/cc-report.md, then run:
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-cc.ps1" -Pair "$ARGUMENTS" -Mode report

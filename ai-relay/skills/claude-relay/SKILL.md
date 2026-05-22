@@ -21,11 +21,16 @@
    - `cc-inbox.md` 是否有未读 Codex 新任务。
    - `cc-report.md` 是否比 `codex-reply.md` 新，是否正在等待 Codex 裁决。
    - 是否空闲。
-4. 如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
+4. 必须优先读取脚本输出的机器状态：
+   - `AI_RELAY_STATUS=CODEX_REPLY_UNREAD`：读取并执行脚本输出的 Codex 裁决。
+   - `AI_RELAY_STATUS=CC_INBOX_UNREAD`：读取并执行脚本输出的 Codex 新任务。
+   - `AI_RELAY_STATUS=WAITING_FOR_CODEX`：报告已发出或应发出，等待 Codex 裁决。
+   - `AI_RELAY_STATUS=IDLE`：没有新消息，也没有未读裁决；不要说“等待 Codex 裁决”。
+5. 如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
    ai-relay-cc.ps1 -Pair <pair> -Mode report
-5. 不要启动 Codex subagent。
-6. 不要启动 codex-with-cc。
-7. 不要写入其他 pair 目录。
+6. 不要启动 Codex subagent。
+7. 不要启动 codex-with-cc。
+8. 不要写入其他 pair 目录。
 
 ## cc-report.md 格式
 
