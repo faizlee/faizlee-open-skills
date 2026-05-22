@@ -487,7 +487,18 @@ function Handle-Action {
     if ($path -eq '/action/open') {
       $target = Decode-Query $query['path']
       if (-not (Test-Path -LiteralPath $target)) { throw "路径不存在：$target" }
-      Invoke-Item -LiteralPath $target
+      $item = Get-Item -LiteralPath $target
+      if ($item.PSIsContainer) {
+        Start-Process -FilePath explorer.exe -ArgumentList @($item.FullName) | Out-Null
+      } else {
+        try {
+          Start-Process -FilePath $item.FullName -ErrorAction Stop | Out-Null
+        } catch {
+          $notepad = Get-Command notepad.exe -ErrorAction SilentlyContinue
+          if (-not $notepad) { throw }
+          Start-Process -FilePath $notepad.Source -ArgumentList @($item.FullName) | Out-Null
+        }
+      }
       Write-HttpText -Response $Response -Text (New-ResultHtml '已打开' "<pre>$(Encode-Html $target)</pre>")
       return
     }
