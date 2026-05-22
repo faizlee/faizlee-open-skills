@@ -93,6 +93,8 @@ Claude Code 侧 `/workloop <pair>` 不带 goal 时，会按顺序检查：
 ```powershell
 ai-relay-bind-cc.ps1 -Pair <pair>
 ai-relay-bind-codex.ps1 -Pair <pair> -CodexSessionId <id>
+ai-workloop.ps1 <pair> [goal...]
+ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode pull
 ai-relay-cc.ps1 -Pair <pair> -Mode report
@@ -177,6 +179,28 @@ ai-relay-review.ps1 -Pair bug-typeerror -Format both
 - 下一步建议
 
 如果要让 Claude Code 基于复盘材料写人工总结，可以把生成的 review markdown 交给 Claude Code；默认脚本只做本地规则分析。
+
+## Dashboard
+
+生成本机只读中文面板，不调用 Codex，不启动服务，不控制终端：
+
+```powershell
+ai-workloop-dashboard.ps1 -ProjectRoot "E:\work\project\faizleecom" -Open
+```
+
+也可以一次扫描多个项目：
+
+```powershell
+ai-workloop-dashboard.ps1 -ProjectRoot "E:\work\project\faizleecom","E:\work\project\faizlee-open-skills" -Open
+```
+
+默认输出：
+
+```text
+$HOME\.ai-tools\workloop-dashboard\index.html
+```
+
+面板会展示项目、pair、状态、轮次、最新目标、最新报告、最新 Codex 裁决、历史轮数和下一步命令。
 
 ## Agent Workloop
 
