@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string[]]$ProjectRoot,
   [int]$Port = 17877,
   [switch]$Open
@@ -114,6 +114,26 @@ function Get-QueryMap {
     $kv = $part -split '=', 2
     $key = Decode-Query $kv[0]
     $value = if ($kv.Count -gt 1) { Decode-Query $kv[1] } else { '' }
+    $map[$key] = $value
+  }
+  return $map
+}
+
+function Get-RequestFormMap {
+  param([System.Net.HttpListenerRequest]$Request)
+  $map = @{}
+  if (-not $Request.HasEntityBody) { return $map }
+  $reader = [System.IO.StreamReader]::new($Request.InputStream, $Request.ContentEncoding)
+  try {
+    $body = $reader.ReadToEnd()
+  } finally {
+    $reader.Close()
+  }
+  foreach ($part in ($body -split '&')) {
+    if ([string]::IsNullOrWhiteSpace($part)) { continue }
+    $kv = $part -split '=', 2
+    $key = Decode-Query (($kv[0] -replace '\+', ' '))
+    $value = if ($kv.Count -gt 1) { Decode-Query (($kv[1] -replace '\+', ' ')) } else { '' }
     $map[$key] = $value
   }
   return $map
@@ -339,6 +359,22 @@ function Handle-Action {
       return
     }
 
+    if ($path -eq '/action/create-pair') {
+      $form = Get-RequestFormMap $Request
+      $project = Assert-AllowedProject ([string]$form['projectRoot'])
+      $pair = [string]$form['pair']
+      $task = [string]$form['task']
+      Assert-AiRelayPairName $pair
+      Write-Host ("[{0}] CREATE pair project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
+      $output = Invoke-Captured {
+        Push-Location $project
+        try { & "$PSScriptRoot\ai-relay-bind-cc.ps1" -Pair $pair -Task $task } finally { Pop-Location }
+      }
+      $bindPath = Join-Path (Get-AiRelayPairDir $project $pair) 'bind-request.md'
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建' "<p>已创建 Pair，并生成 bind-request.md。内容已尝试复制到剪贴板。</p><pre>$(Encode-Html $output)</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
+      return
+    }
+
     $project = Assert-AllowedProject (Decode-Query $query['projectRoot'])
     $pair = Decode-Query $query['pair']
     Assert-AiRelayPairName $pair
@@ -532,6 +568,43 @@ Read-Host '按 Enter 关闭窗口'
         try { & "$PSScriptRoot\ai-relay-review.ps1" -Pair $pair -Format both -Open } finally { Pop-Location }
       }
       Write-HttpText -Response $Response -Text (New-ResultHtml '复盘报告生成结果' "<pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
+    if ($path -eq '/action/archive-pair') {
+      $pairDir = Get-AiRelayPairDir $project $pair
+      if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
+      $statusPath = Join-Path $pairDir 'cc-runner-status.json'
+      if (Test-Path -LiteralPath $statusPath) {
+        try {
+          $status = Get-Content -LiteralPath $statusPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if ($status.status -in @('queued','started','running') -and $status.processId) {
+            $running = Get-Process -Id ([int]$status.processId) -ErrorAction SilentlyContinue
+            if ($running) { throw "Pair 正在运行，不能归档。请先停止 CC 执行。" }
+          }
+        } catch {
+          if ($_.Exception.Message -like '*正在运行*') { throw }
+        }
+      }
+      $archiveRoot = Join-Path (Get-AiRelayRoot $project) 'archived-pairs'
+      New-Item -ItemType Directory -Force -Path $archiveRoot | Out-Null
+      $destination = Join-Path $archiveRoot $pair
+      if (Test-Path -LiteralPath $destination) {
+        $destination = Join-Path $archiveRoot ("{0}-{1}" -f $pair, (Get-Date -Format 'yyyyMMdd-HHmmss'))
+      }
+      Move-Item -LiteralPath $pairDir -Destination $destination
+      $currentPath = Join-Path (Get-AiRelayRoot $project) 'current-pair.json'
+      if (Test-Path -LiteralPath $currentPath) {
+        try {
+          $current = Get-Content -LiteralPath $currentPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if ([string]$current.pairId -eq $pair) {
+            Remove-Item -LiteralPath $currentPath -Force
+          }
+        } catch {
+        }
+      }
+      Write-Host ("[{0}] ARCHIVE pair project={1} pair={2} destination={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $destination)
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已归档' "<p>Pair 已移动到 archived-pairs，不会出现在普通面板列表中。</p><pre>$(Encode-Html $destination)</pre>")
       return
     }
 

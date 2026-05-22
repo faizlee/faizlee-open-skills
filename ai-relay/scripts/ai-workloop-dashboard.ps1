@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string[]]$ProjectRoot,
   [string]$OutDir,
   [string]$ControlBaseUrl,
@@ -304,6 +304,10 @@ foreach ($project in $resolvedProjects) {
 
 $statusCounts = $rows | Group-Object Status | Sort-Object Name
 $generatedAt = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+$controlPrefix = ''
+if ($ControlBaseUrl) {
+  $controlPrefix = $ControlBaseUrl.TrimEnd('/')
+}
 
 $cards = [System.Text.StringBuilder]::new()
 foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
@@ -315,10 +319,6 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   $historyUri = ConvertTo-WorkloopFileUri $row.HistoryDir
   $reportUri = ConvertTo-WorkloopFileUri $row.ReportPath
   $replyUri = ConvertTo-WorkloopFileUri $row.ReplyPath
-  $controlPrefix = ''
-  if ($ControlBaseUrl) {
-    $controlPrefix = $ControlBaseUrl.TrimEnd('/')
-  }
   [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-')) health-$([regex]::Replace($row.HealthLevel, '[^A-Za-z0-9_-]', '-'))'>")
   [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.Status)</span></div>")
   [void]$cards.AppendLine("<dl class='meta'>")
@@ -360,6 +360,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>系统打开 Pair</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")
+    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='归档 Pair 会把目录移动到 .ai-relay/archived-pairs，不会删除数据。确认归档？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/archive-pair?projectRoot=$projectArg&pair=$pairArg")' data-refresh='true'>归档 Pair</button>")
   }
   [void]$cards.AppendLine("</section>")
   [void]$cards.AppendLine("<section class='health-box'><h3>健康提示：$(Encode-WorkloopHtml $row.HealthLabel)</h3>")
@@ -396,6 +397,31 @@ if ($rows.Count -eq 0) {
 }
 
 $projectList = ($resolvedProjects | ForEach-Object { "<li><code>$(Encode-WorkloopHtml $_)</code></li>" }) -join "`n"
+$createPanel = ''
+if ($controlPrefix) {
+  $projectOptions = ($resolvedProjects | ForEach-Object {
+    $encoded = Encode-WorkloopHtml $_
+    "<option value='$encoded'>$encoded</option>"
+  }) -join "`n"
+  $createPanel = @"
+    <section class="create-panel">
+      <h2>创建 Pair</h2>
+      <form id="create-pair-form" method="post" action="$(Encode-WorkloopHtml "$controlPrefix/action/create-pair")">
+        <label>项目
+          <select name="projectRoot" required>$projectOptions</select>
+        </label>
+        <label>Pair
+          <input name="pair" required pattern="[A-Za-z0-9][A-Za-z0-9._-]*" placeholder="例如 com_main">
+        </label>
+        <label>目标
+          <input name="task" placeholder="可选，写一句目标">
+        </label>
+        <button type="submit">创建 Pair</button>
+      </form>
+      <p>创建会生成 bind-request.md 并复制到剪贴板；随后仍需在 Codex 中完成 /bind。</p>
+    </section>
+"@
+}
 
 $html = @"
 <!doctype html>
@@ -419,6 +445,13 @@ $html = @"
     .projects { margin:0 0 22px; padding:14px 18px; background:#fff; border:1px solid var(--line); border-radius:8px; }
     .projects h2 { font-size:15px; margin:0 0 10px; }
     .projects ul { margin:0; padding-left:18px; color:var(--muted); }
+    .create-panel { margin:0 0 22px; padding:14px 18px; background:#fff; border:1px solid var(--line); border-radius:8px; }
+    .create-panel h2 { font-size:15px; margin:0 0 12px; }
+    .create-panel form { display:grid; grid-template-columns:minmax(220px,1fr) minmax(160px,240px) minmax(220px,1fr) auto; gap:10px; align-items:end; }
+    .create-panel label { display:grid; gap:5px; color:var(--muted); font-size:12px; }
+    .create-panel input, .create-panel select { border:1px solid var(--line); border-radius:6px; padding:8px 10px; font:inherit; color:var(--ink); background:#fff; min-width:0; }
+    .create-panel button { border:1px solid var(--accent); border-radius:6px; background:#e7f2ed; color:var(--accent); padding:8px 12px; font:inherit; cursor:pointer; }
+    .create-panel p { margin:10px 0 0; color:var(--muted); font-size:12px; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:16px; }
     .pair-card { background:var(--card); border:1px solid var(--line); border-left:5px solid var(--muted); border-radius:8px; padding:16px; }
     .status-reply { border-left-color:var(--blue); }
@@ -455,12 +488,15 @@ $html = @"
     pre { margin:0; padding:10px; background:#f5f6f2; border:1px solid #e4e6df; border-radius:6px; white-space:pre-wrap; overflow-wrap:anywhere; font-family:Consolas, monospace; font-size:12px; line-height:1.45; }
     .empty { background:#fff; border:1px solid var(--line); border-radius:8px; padding:22px; color:var(--muted); }
     footer { color:var(--muted); font-size:12px; padding:0 36px 30px; }
+    @media (max-width: 900px) {
+      .create-panel form { grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Agent Workloop Dashboard</h1>
-    <p class="sub">只读面板。生成时间：$generatedAt。不会调用 Codex，不会控制终端，不会修改业务代码。</p>
+    <p class="sub">本地控制面板。生成时间：$generatedAt。创建和归档只修改 .ai-relay 数据；执行按钮会调用对应 CLI。</p>
   </header>
   <main>
     <section class="summary">
@@ -470,11 +506,12 @@ $html = @"
       <h2>扫描项目</h2>
       <ul>$projectList</ul>
     </section>
+    $createPanel
     <section class="grid">
       $($cards.ToString())
     </section>
   </main>
-  <footer>提示：复制卡片里的下一步命令到对应 Claude Code 会话执行。</footer>
+  <footer>提示：创建 Pair 后，把 bind-request 交给对应 Codex 会话完成绑定。</footer>
   <script>
     document.querySelectorAll('button[data-copy]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -517,6 +554,9 @@ $html = @"
           } else {
             window.alert(text.replace(/<[^>]+>/g, ''));
           }
+          if (button.getAttribute('data-refresh') === 'true' && response.ok) {
+            setTimeout(() => window.location.reload(), 500);
+          }
         } catch (error) {
           const errorText = '执行失败：' + error;
           if (resultWindow) {
@@ -532,6 +572,41 @@ $html = @"
         }
       });
     });
+    const createForm = document.getElementById('create-pair-form');
+    if (createForm) {
+      createForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const resultWindow = window.open('', '_blank');
+        const data = new URLSearchParams(new FormData(createForm));
+        try {
+          const response = await fetch(createForm.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: data.toString()
+          });
+          const text = await response.text();
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write(text);
+            resultWindow.document.close();
+          } else {
+            window.alert(text.replace(/<[^>]+>/g, ''));
+          }
+          if (response.ok) {
+            setTimeout(() => window.location.reload(), 500);
+          }
+        } catch (error) {
+          const errorText = '创建失败：' + error;
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>创建失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
+            resultWindow.document.close();
+          } else {
+            window.alert(errorText);
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>
