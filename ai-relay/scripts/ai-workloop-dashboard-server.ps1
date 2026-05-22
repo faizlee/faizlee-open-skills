@@ -402,6 +402,15 @@ function Set-WorkloopCcSessionId {
   $pairDir = Get-AiRelayPairDir $Project $Pair
   if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
   $pairJsonPath = Join-Path $pairDir 'pair.json'
+  $bindPath = Join-Path $pairDir 'bind-request.md'
+  $bindValues = @{}
+  if (Test-Path -LiteralPath $bindPath) {
+    $bindTextForValues = Get-Content -LiteralPath $bindPath -Raw -Encoding utf8
+    foreach ($name in @('task','ccInboxPath','ccReportPath','codexReplyPath')) {
+      $m = [regex]::Match($bindTextForValues, "(?m)^$([regex]::Escape($name)):[ \t]*(.*)$")
+      if ($m.Success) { $bindValues[$name] = $m.Groups[1].Value.Trim() }
+    }
+  }
   if (Test-Path -LiteralPath $pairJsonPath) {
     $pairJson = Get-Content -LiteralPath $pairJsonPath -Raw -Encoding utf8 | ConvertFrom-Json
     $pairJson.ccSessionId = $CcSessionId
@@ -412,8 +421,21 @@ function Set-WorkloopCcSessionId {
     }
     $pairJson.boundAt = (Get-Date).ToString('o')
     Write-AiRelayJson $pairJson $pairJsonPath
+  } else {
+    Write-AiRelayJson ([ordered]@{
+      pairId = $Pair
+      projectRoot = $Project
+      task = if ($bindValues.ContainsKey('task')) { $bindValues['task'] } else { '' }
+      codexSessionId = ''
+      ccSessionId = $CcSessionId
+      ccSessionName = $CcSessionId
+      ccInboxPath = if ($bindValues.ContainsKey('ccInboxPath')) { $bindValues['ccInboxPath'] } else { Join-Path $pairDir 'cc-inbox.md' }
+      ccReportPath = if ($bindValues.ContainsKey('ccReportPath')) { $bindValues['ccReportPath'] } else { Join-Path $pairDir 'cc-report.md' }
+      codexReplyPath = if ($bindValues.ContainsKey('codexReplyPath')) { $bindValues['codexReplyPath'] } else { Join-Path $pairDir 'codex-reply.md' }
+      role = 'commander'
+      boundAt = (Get-Date).ToString('o')
+    }) $pairJsonPath
   }
-  $bindPath = Join-Path $pairDir 'bind-request.md'
   if (Test-Path -LiteralPath $bindPath) {
     $bindText = Get-Content -LiteralPath $bindPath -Raw -Encoding utf8
     if ($bindText -match '(?m)^ccSessionId:') {
