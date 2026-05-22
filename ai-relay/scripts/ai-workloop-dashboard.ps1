@@ -18,6 +18,16 @@ function Encode-WorkloopHtml {
   [System.Net.WebUtility]::HtmlEncode([string]$Text)
 }
 
+function ConvertTo-WorkloopFileUri {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+  try {
+    return ([System.Uri]::new((Resolve-Path -LiteralPath $Path -ErrorAction Stop).ProviderPath)).AbsoluteUri
+  } catch {
+    return ''
+  }
+}
+
 function Read-WorkloopJson {
   param([string]$Path)
   if (Test-Path -LiteralPath $Path) {
@@ -146,6 +156,10 @@ function Get-WorkloopPairRow {
     LastUpdated = if ($lastTime) { $lastTime.ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
     HistoryCount = $historyCount
     PairDir = $PairDir
+    HistoryDir = $historyRoot
+    InboxPath = $inboxPath
+    ReportPath = $reportPath
+    ReplyPath = $replyPath
     InboxExcerpt = Get-WorkloopExcerpt $inboxPath
     ReportExcerpt = Get-WorkloopExcerpt $reportPath
     ReplyExcerpt = Get-WorkloopExcerpt $replyPath
@@ -195,6 +209,12 @@ $cards = [System.Text.StringBuilder]::new()
 foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   $roundText = if ($row.Round) { "$($row.Round) / $($row.MaxRounds)" } else { '-' }
   $command = "/workloop $($row.PairId)"
+  $psCommand = "powershell -NoProfile -ExecutionPolicy Bypass -File `"`$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1`" `"$($row.PairId)`""
+  $projectUri = ConvertTo-WorkloopFileUri $row.ProjectRoot
+  $pairUri = ConvertTo-WorkloopFileUri $row.PairDir
+  $historyUri = ConvertTo-WorkloopFileUri $row.HistoryDir
+  $reportUri = ConvertTo-WorkloopFileUri $row.ReportPath
+  $replyUri = ConvertTo-WorkloopFileUri $row.ReplyPath
   [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-'))'>")
   [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.Status)</span></div>")
   [void]$cards.AppendLine("<dl class='meta'>")
@@ -205,6 +225,16 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   [void]$cards.AppendLine("<div><dt>最后更新</dt><dd>$(Encode-WorkloopHtml $row.LastUpdated)</dd></div>")
   [void]$cards.AppendLine("<div><dt>Pair 目录</dt><dd><code>$(Encode-WorkloopHtml $row.PairDir)</code></dd></div>")
   [void]$cards.AppendLine("</dl>")
+  [void]$cards.AppendLine("<section class='actions' aria-label='操作辅助'>")
+  [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $command)'>复制 /workloop</button>")
+  [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $psCommand)'>复制 PowerShell</button>")
+  [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $row.PairDir)'>复制 Pair 路径</button>")
+  if ($projectUri) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $projectUri)'>打开项目</a>") }
+  if ($pairUri) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $pairUri)'>打开 Pair</a>") }
+  if ($historyUri -and (Test-Path -LiteralPath $row.HistoryDir)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $historyUri)'>打开 History</a>") }
+  if ($reportUri -and (Test-Path -LiteralPath $row.ReportPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $reportUri)'>打开报告</a>") }
+  if ($replyUri -and (Test-Path -LiteralPath $row.ReplyPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $replyUri)'>打开裁决</a>") }
+  [void]$cards.AppendLine("</section>")
   [void]$cards.AppendLine("<section class='excerpt'><h3>下一步命令</h3><pre>$(Encode-WorkloopHtml $command)</pre></section>")
   if ($row.InboxExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新任务</h3><pre>$(Encode-WorkloopHtml $row.InboxExcerpt)</pre></section>") }
   if ($row.ReportExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新报告</h3><pre>$(Encode-WorkloopHtml $row.ReportExcerpt)</pre></section>") }
@@ -264,6 +294,10 @@ $html = @"
     dt { color:var(--muted); font-size:12px; margin-bottom:2px; }
     dd { margin:0; font-size:13px; overflow-wrap:anywhere; }
     code { font-family: Consolas, monospace; font-size:12px; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+    .actions button, .actions a { appearance:none; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); padding:7px 10px; font:inherit; font-size:12px; text-decoration:none; cursor:pointer; }
+    .actions button:hover, .actions a:hover { border-color:var(--accent); color:var(--accent); }
+    .actions button.copied { background:#e7f2ed; border-color:var(--accent); color:var(--accent); }
     .excerpt { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
     .excerpt h3 { margin:0 0 6px; font-size:13px; color:var(--muted); }
     pre { margin:0; padding:10px; background:#f5f6f2; border:1px solid #e4e6df; border-radius:6px; white-space:pre-wrap; overflow-wrap:anywhere; font-family:Consolas, monospace; font-size:12px; line-height:1.45; }
@@ -289,6 +323,25 @@ $html = @"
     </section>
   </main>
   <footer>提示：复制卡片里的下一步命令到对应 Claude Code 会话执行。</footer>
+  <script>
+    document.querySelectorAll('button[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const text = button.getAttribute('data-copy') || '';
+        try {
+          await navigator.clipboard.writeText(text);
+          button.classList.add('copied');
+          const oldText = button.textContent;
+          button.textContent = '已复制';
+          setTimeout(() => {
+            button.textContent = oldText;
+            button.classList.remove('copied');
+          }, 1200);
+        } catch (error) {
+          window.prompt('复制失败，请手动复制：', text);
+        }
+      });
+    });
+  </script>
 </body>
 </html>
 "@

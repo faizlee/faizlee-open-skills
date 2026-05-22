@@ -14,7 +14,7 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 - Claude Code auto relay checks unread Codex replies, unread inbox messages, and waiting-for-decision state.
 - `/workloop` is the single Claude Code command: without a goal it checks message state; with a goal it starts the review loop.
 - Workloop sends each completed Claude Code round to Codex, updates `goal.json`, and continues when Codex gives a next instruction.
-- Static dashboard summarizes projects, pairs, workloop status, latest reports, and latest Codex decisions.
+- Static dashboard summarizes projects, pairs, workloop status, latest reports, latest Codex decisions, and safe copy/open actions.
 - Archives every report round and exports Chinese Markdown/HTML audit reports.
 
 ## Hard Boundaries

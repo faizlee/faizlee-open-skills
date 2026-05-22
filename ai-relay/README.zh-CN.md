@@ -202,6 +202,16 @@ $HOME\.ai-tools\workloop-dashboard\index.html
 
 面板会展示项目、pair、状态、轮次、最新目标、最新报告、最新 Codex 裁决、历史轮数和下一步命令。
 
+面板操作只做安全辅助：
+
+- 复制 `/workloop <pair>`
+- 复制 PowerShell 命令
+- 复制 pair 路径
+- 打开项目目录、pair 目录、history 目录
+- 打开最新报告和最新裁决文件
+
+面板按钮不会直接调用 Codex，也不会自动控制 Claude Code / Codex 终端。
+
 ## Agent Workloop
 
 Agent Workloop 是基于 relay 的多轮协作闭环：
