@@ -387,21 +387,37 @@ function Handle-Action {
       $powershell = Get-Command powershell -ErrorAction SilentlyContinue
       if (-not $powershell) { throw "powershell.exe not found." }
       $runnerPath = Join-Path $PSScriptRoot 'ai-workloop-cc-runner.ps1'
+      $terminalCommand = @"
+`$ErrorActionPreference = 'Continue'
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+  `$OutputEncoding = [System.Text.UTF8Encoding]::new()
+} catch {}
+Set-Location -LiteralPath '$($project.Replace("'", "''"))'
+Write-Host 'Agent Workloop CC runner'
+Write-Host 'Pair: $($pair.Replace("'", "''"))'
+Write-Host 'Project: $($project.Replace("'", "''"))'
+Write-Host 'Log: $($stdoutPath.Replace("'", "''"))'
+Write-Host ''
+& '$($runnerPath.Replace("'", "''"))' -Pair '$($pair.Replace("'", "''"))' 2>&1 | Tee-Object -FilePath '$($stdoutPath.Replace("'", "''"))'
+Write-Host ''
+Write-Host 'CC runner 已结束。窗口只用于观看输出；控制仍然通过面板或原 CC/Codex 会话完成。'
+Read-Host '按 Enter 关闭窗口'
+"@
+      $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($terminalCommand))
       $process = Start-Process -FilePath $powershell.Source -ArgumentList @(
         '-NoProfile',
         '-ExecutionPolicy',
         'Bypass',
-        '-File',
-        $runnerPath,
-        '-Pair',
-        $pair
-      ) -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
+        '-EncodedCommand',
+        $encodedCommand
+      ) -WorkingDirectory $project -WindowStyle Normal -PassThru
       Write-Host ("[{0}] cc-runner started pid={1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $process.Id)
       Write-AiRelayJson ([ordered]@{
         pairId = $pair
         projectRoot = $project
         status = 'started'
-        message = '已启动后台 Claude Code runner，等待 runner 写入运行状态。'
+        message = '已启动可见 Claude Code runner 终端，等待 runner 写入运行状态。'
         exitCode = 0
         outputPath = Join-Path $pairDir 'cc-runner-output.md'
         streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
