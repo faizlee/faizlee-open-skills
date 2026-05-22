@@ -314,11 +314,6 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   $roundText = if ($row.Round) { "$($row.Round) / $($row.MaxRounds)" } else { '-' }
   $command = "/workloop $($row.PairId)"
   $psCommand = "powershell -NoProfile -ExecutionPolicy Bypass -File `"`$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1`" `"$($row.PairId)`""
-  $projectUri = ConvertTo-WorkloopFileUri $row.ProjectRoot
-  $pairUri = ConvertTo-WorkloopFileUri $row.PairDir
-  $historyUri = ConvertTo-WorkloopFileUri $row.HistoryDir
-  $reportUri = ConvertTo-WorkloopFileUri $row.ReportPath
-  $replyUri = ConvertTo-WorkloopFileUri $row.ReplyPath
   [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-')) health-$([regex]::Replace($row.HealthLevel, '[^A-Za-z0-9_-]', '-'))'>")
   [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.Status)</span></div>")
   [void]$cards.AppendLine("<dl class='meta'>")
@@ -339,30 +334,35 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   [void]$cards.AppendLine("<div><dt>预算上限</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerBudget)</dd></div>")
   [void]$cards.AppendLine("</dl></section>")
   [void]$cards.AppendLine("<section class='actions' aria-label='操作辅助'>")
-  [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $command)'>复制 /workloop</button>")
-  [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $psCommand)'>复制 PowerShell</button>")
-  [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $row.PairDir)'>复制 Pair 路径</button>")
-  if ($projectUri) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $projectUri)'>打开项目</a>") }
-  if ($pairUri) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $pairUri)'>打开 Pair</a>") }
-  if ($historyUri -and (Test-Path -LiteralPath $row.HistoryDir)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $historyUri)'>打开 History</a>") }
-  if ($reportUri -and (Test-Path -LiteralPath $row.ReportPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $reportUri)'>打开报告</a>") }
-  if ($replyUri -and (Test-Path -LiteralPath $row.ReplyPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $replyUri)'>打开裁决</a>") }
   if ($controlPrefix) {
     $projectArg = Encode-WorkloopUrl $row.ProjectRoot
     $pairArg = Encode-WorkloopUrl $row.PairId
+    $projectPathArg = Encode-WorkloopUrl $row.ProjectRoot
     $pairPathArg = Encode-WorkloopUrl $row.PairDir
+    $reportPathArg = Encode-WorkloopUrl $row.ReportPath
+    $replyPathArg = Encode-WorkloopUrl $row.ReplyPath
+    $historyPathArg = Encode-WorkloopUrl $row.HistoryDir
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='执行 /workloop 可能调用 Codex 并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/workloop?projectRoot=$projectArg&pair=$pairArg")'>执行 /workloop</button>")
     if ($row.CcSessionId) {
       [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='让 Claude Code 执行会调用 Claude CLI，可能修改文件并消耗额度，并会打开一个只读观看终端。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>让 CC 执行并打开终端</button>")
     } else {
       [void]$cards.AppendLine("<button type='button' disabled title='pair.json 缺少 ccSessionId，需要重新 bind'>缺少 ccSessionId</button>")
     }
-    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>系统打开 Pair</button>")
-    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
-    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>打开 Pair</button>")
+    if (Test-Path -LiteralPath $row.ReportPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$reportPathArg")'>打开报告</button>") }
+    if (Test-Path -LiteralPath $row.ReplyPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$replyPathArg")'>打开裁决</button>") }
     [void]$cards.AppendLine("<button type='button' data-rebind-codex='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-codex?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 Codex</button>")
     [void]$cards.AppendLine("<button type='button' data-rebind-cc='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-cc?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 CC</button>")
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='归档 Pair 会把目录移动到 .ai-relay/archived-pairs，不会删除数据。确认归档？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/archive-pair?projectRoot=$projectArg&pair=$pairArg")' data-refresh='true'>归档 Pair</button>")
+    [void]$cards.AppendLine("<details class='debug-actions'><summary>更多 / 调试</summary><div class='actions'>")
+    [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $command)'>复制 /workloop</button>")
+    [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $psCommand)'>复制 PowerShell</button>")
+    [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $row.PairDir)'>复制 Pair 路径</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$projectPathArg")'>打开项目</button>")
+    if (Test-Path -LiteralPath $row.HistoryDir) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$historyPathArg")'>打开 History</button>") }
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")
+    [void]$cards.AppendLine("</div></details>")
   }
   [void]$cards.AppendLine("</section>")
   [void]$cards.AppendLine("<section class='health-box'><h3>健康提示：$(Encode-WorkloopHtml $row.HealthLabel)</h3>")
@@ -493,6 +493,9 @@ $html = @"
     .actions button:hover, .actions a:hover { border-color:var(--accent); color:var(--accent); }
     .actions button.copied { background:#e7f2ed; border-color:var(--accent); color:var(--accent); }
     .actions .danger-action { border-color:#d6b07b; background:#fff8ed; }
+    .debug-actions { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; width:100%; }
+    .debug-actions summary { cursor:pointer; color:var(--muted); font-size:12px; }
+    .debug-actions .actions { margin:10px 0 0; }
     .health-box { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
     .runner-preview { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
     .runner-preview h3 { margin:0 0 8px; font-size:13px; color:var(--muted); }
