@@ -272,7 +272,7 @@ $report
   if ($existingIndexes) {
     $nextIndex = (($existingIndexes | Measure-Object -Maximum).Maximum + 1)
   }
-  $historyId = ('{0}-{1}' -f $nextIndex.ToString('D4'), (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  $historyId = ('{0:D4}-{1}' -f [int]$nextIndex, (Get-Date -Format 'yyyyMMdd-HHmmss'))
   $historyDir = Join-Path $historyRoot $historyId
   New-Item -ItemType Directory -Force -Path $historyDir | Out-Null
   if (Test-Path -LiteralPath $inboxPath) {
@@ -299,11 +299,23 @@ $report
     $codexSessionId = [string]$pair.codexSessionId
     $args = @('exec', '-C', $ProjectRoot, 'resume', '--ignore-user-config', '-c', 'sandbox_mode="read-only"', '-o', $replyPath, $codexSessionId, '-')
     Add-AiRelayLog -PairDir $PairDir -Event 'cc-report-to-codex' -Detail "historyId: $historyId`nRunning: codex exec -C <projectRoot> resume --ignore-user-config -c sandbox_mode=<read-only> -o <codex-reply.md> <codexSessionId> -"
-    Get-Content -LiteralPath $promptPath -Raw -Encoding utf8 | & codex @args
+    $oldErrorActionPreference = $ErrorActionPreference
+    $oldNativePreference = $null
+    $hadNativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue
+    if ($hadNativePreference) { $oldNativePreference = $PSNativeCommandUseErrorActionPreference }
+    try {
+      $ErrorActionPreference = 'Continue'
+      if ($hadNativePreference) { $global:PSNativeCommandUseErrorActionPreference = $false }
+      $codexCliOutput = Get-Content -LiteralPath $promptPath -Raw -Encoding utf8 | & codex @args 2>&1 | Out-String
+    } finally {
+      $ErrorActionPreference = $oldErrorActionPreference
+      if ($hadNativePreference) { $global:PSNativeCommandUseErrorActionPreference = $oldNativePreference }
+    }
+    Set-Content -LiteralPath (Join-Path $historyDir 'codex-cli-output.log') -Value $codexCliOutput -Encoding utf8
     if ($LASTEXITCODE -ne 0) {
       $summary.status = "codex-failed-$LASTEXITCODE"
       Write-AiRelayJson $summary (Join-Path $historyDir 'summary.json')
-      throw "codex exec resume failed with exit code $LASTEXITCODE."
+      throw "codex exec resume failed with exit code $LASTEXITCODE.`n$codexCliOutput"
     }
   } else {
     throw "codex CLI not found in PATH."
