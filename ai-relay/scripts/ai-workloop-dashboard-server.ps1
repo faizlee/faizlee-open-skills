@@ -375,6 +375,23 @@ function Handle-Action {
       return
     }
 
+    if ($path -eq '/action/discover-projects') {
+      $form = Get-RequestFormMap $Request
+      $scanRoot = [string]$form['scanRoot']
+      $depth = 2
+      if ([string]$form['depth'] -match '^\d+$') {
+        $depth = [int]$form['depth']
+      }
+      if ($depth -lt 1) { $depth = 1 }
+      if ($depth -gt 5) { $depth = 5 }
+      Write-Host ("[{0}] DISCOVER projects root={1} depth={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $scanRoot, $depth)
+      $output = Invoke-Captured {
+        & "$PSScriptRoot\ai-workloop-project.ps1" -Mode discover-add -ScanRoot $scanRoot -Depth $depth
+      }
+      Write-HttpText -Response $Response -Text (New-ResultHtml '项目扫描完成' "<p>已扫描并添加候选项目。刷新面板后可在项目列表和创建 Pair 下拉框中看到。</p><pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
     $project = Assert-AllowedProject (Decode-Query $query['projectRoot'])
     $pair = Decode-Query $query['pair']
     Assert-AiRelayPairName $pair

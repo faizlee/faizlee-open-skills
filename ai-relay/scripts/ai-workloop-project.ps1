@@ -1,6 +1,8 @@
-param(
-  [ValidateSet('add','remove','list','clear')][string]$Mode = 'list',
-  [string[]]$ProjectRoot
+﻿param(
+  [ValidateSet('add','remove','list','clear','discover','discover-add')][string]$Mode = 'list',
+  [string[]]$ProjectRoot,
+  [string]$ScanRoot = 'E:\work\project',
+  [int]$Depth = 2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,6 +47,65 @@ function Expand-WorkloopProjectArgs {
     $items += ([string]$root -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") })
   }
   return @($items | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Find-WorkloopProjects {
+  param(
+    [Parameter(Mandatory=$true)][string]$Root,
+    [int]$MaxDepth = 2
+  )
+  $resolvedRoot = Resolve-Path -LiteralPath $Root -ErrorAction Stop
+  $rootPath = $resolvedRoot.ProviderPath.TrimEnd('\')
+  $markers = @(
+    '.git',
+    'package.json',
+    'pnpm-workspace.yaml',
+    'pyproject.toml',
+    'Cargo.toml',
+    'go.mod',
+    'pom.xml',
+    'build.gradle',
+    'composer.json'
+  )
+  $excluded = @{
+    '.git' = $true
+    '.ai-relay' = $true
+    '.next' = $true
+    'node_modules' = $true
+    'dist' = $true
+    'build' = $true
+    'target' = $true
+    'vendor' = $true
+    '.venv' = $true
+    '__pycache__' = $true
+  }
+  $found = [System.Collections.Generic.List[string]]::new()
+  $queue = [System.Collections.Generic.Queue[object]]::new()
+  $queue.Enqueue([pscustomobject]@{ Path = $rootPath; Depth = 0 })
+
+  while ($queue.Count -gt 0) {
+    $item = $queue.Dequeue()
+    $path = [string]$item.Path
+    $depth = [int]$item.Depth
+    $isProject = $false
+    foreach ($marker in $markers) {
+      if (Test-Path -LiteralPath (Join-Path $path $marker)) {
+        $isProject = $true
+        break
+      }
+    }
+    if ($isProject) {
+      [void]$found.Add($path)
+      continue
+    }
+    if ($depth -ge $MaxDepth) { continue }
+    Get-ChildItem -LiteralPath $path -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+      if (-not $excluded.ContainsKey($_.Name)) {
+        $queue.Enqueue([pscustomobject]@{ Path = $_.FullName; Depth = ($depth + 1) })
+      }
+    }
+  }
+  return @($found | Sort-Object -Unique)
 }
 
 $current = @(Read-WorkloopProjects)
@@ -97,5 +158,22 @@ switch ($Mode) {
     $projects = @(Read-WorkloopProjects)
     Write-Output "AI_WORKLOOP_PROJECTS_COUNT=$($projects.Count)"
     $projects | ForEach-Object { Write-Output $_ }
+  }
+  'discover' {
+    $found = @(Find-WorkloopProjects -Root $ScanRoot -MaxDepth $Depth)
+    Write-Output "AI_WORKLOOP_DISCOVER_ROOT=$ScanRoot"
+    Write-Output "AI_WORKLOOP_DISCOVER_DEPTH=$Depth"
+    Write-Output "AI_WORKLOOP_DISCOVER_COUNT=$($found.Count)"
+    $found | ForEach-Object { Write-Output $_ }
+  }
+  'discover-add' {
+    $found = @(Find-WorkloopProjects -Root $ScanRoot -MaxDepth $Depth)
+    Write-WorkloopProjects -Projects @($current + $found)
+    Write-Output "AI_WORKLOOP_PROJECTS_CONFIG=$configPath"
+    Write-Output "AI_WORKLOOP_DISCOVER_ROOT=$ScanRoot"
+    Write-Output "AI_WORKLOOP_DISCOVER_DEPTH=$Depth"
+    Write-Output "AI_WORKLOOP_DISCOVER_ADDED=$($found.Count)"
+    Write-Output "AI_WORKLOOP_PROJECTS_COUNT=$(@(Read-WorkloopProjects).Count)"
+    $found | ForEach-Object { Write-Output $_ }
   }
 }

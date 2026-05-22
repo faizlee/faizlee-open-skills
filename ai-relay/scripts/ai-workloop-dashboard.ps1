@@ -406,6 +406,15 @@ if ($controlPrefix) {
   $createPanel = @"
     <section class="create-panel">
       <h2>创建 Pair</h2>
+      <form id="discover-projects-form" method="post" action="$(Encode-WorkloopHtml "$controlPrefix/action/discover-projects")">
+        <label>扫描根目录
+          <input name="scanRoot" value="E:\work\project" required>
+        </label>
+        <label>深度
+          <input name="depth" type="number" min="1" max="5" value="2" required>
+        </label>
+        <button type="submit">扫描并添加项目</button>
+      </form>
       <form id="create-pair-form" method="post" action="$(Encode-WorkloopHtml "$controlPrefix/action/create-pair")">
         <label>项目
           <select name="projectRoot" required>$projectOptions</select>
@@ -418,7 +427,7 @@ if ($controlPrefix) {
         </label>
         <button type="submit">创建 Pair</button>
       </form>
-      <p>创建会生成 bind-request.md 并复制到剪贴板；随后仍需在 Codex 中完成 /bind。</p>
+      <p>扫描会按 .git 和常见工程清单识别项目根；创建会生成 bind-request.md 并复制到剪贴板，随后仍需在 Codex 中完成 /bind。</p>
     </section>
 "@
 }
@@ -447,7 +456,7 @@ $html = @"
     .projects ul { margin:0; padding-left:18px; color:var(--muted); }
     .create-panel { margin:0 0 22px; padding:14px 18px; background:#fff; border:1px solid var(--line); border-radius:8px; }
     .create-panel h2 { font-size:15px; margin:0 0 12px; }
-    .create-panel form { display:grid; grid-template-columns:minmax(220px,1fr) minmax(160px,240px) minmax(220px,1fr) auto; gap:10px; align-items:end; }
+    .create-panel form { display:grid; grid-template-columns:minmax(220px,1fr) minmax(160px,240px) minmax(220px,1fr) auto; gap:10px; align-items:end; margin-top:10px; }
     .create-panel label { display:grid; gap:5px; color:var(--muted); font-size:12px; }
     .create-panel input, .create-panel select { border:1px solid var(--line); border-radius:6px; padding:8px 10px; font:inherit; color:var(--ink); background:#fff; min-width:0; }
     .create-panel button { border:1px solid var(--accent); border-radius:6px; background:#e7f2ed; color:var(--accent); padding:8px 12px; font:inherit; cursor:pointer; }
@@ -600,6 +609,41 @@ $html = @"
           if (resultWindow) {
             resultWindow.document.open();
             resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>创建失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
+            resultWindow.document.close();
+          } else {
+            window.alert(errorText);
+          }
+        }
+      });
+    }
+    const discoverForm = document.getElementById('discover-projects-form');
+    if (discoverForm) {
+      discoverForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const resultWindow = window.open('', '_blank');
+        const data = new URLSearchParams(new FormData(discoverForm));
+        try {
+          const response = await fetch(discoverForm.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: data.toString()
+          });
+          const text = await response.text();
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write(text);
+            resultWindow.document.close();
+          } else {
+            window.alert(text.replace(/<[^>]+>/g, ''));
+          }
+          if (response.ok) {
+            setTimeout(() => window.location.reload(), 500);
+          }
+        } catch (error) {
+          const errorText = '扫描失败：' + error;
+          if (resultWindow) {
+            resultWindow.document.open();
+            resultWindow.document.write('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>扫描失败</title></head><body><pre>' + errorText.replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])) + '</pre></body></html>');
             resultWindow.document.close();
           } else {
             window.alert(errorText);
