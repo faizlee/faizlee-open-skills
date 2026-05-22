@@ -558,35 +558,38 @@ function Handle-Action {
       return
     }
 
-    if ($path -eq '/action/set-task') {
+    if ($path -eq '/action/plan-task') {
       $form = Get-RequestFormMap $Request
       $projectText = if ($form.ContainsKey('projectRoot') -and -not [string]::IsNullOrWhiteSpace([string]$form['projectRoot'])) { [string]$form['projectRoot'] } else { Decode-Query $query['projectRoot'] }
       $pair = if ($form.ContainsKey('pair') -and -not [string]::IsNullOrWhiteSpace([string]$form['pair'])) { [string]$form['pair'] } else { Decode-Query $query['pair'] }
-      if ([string]::IsNullOrWhiteSpace($projectText)) { throw "缺少 projectRoot，无法设置目标。" }
-      if ([string]::IsNullOrWhiteSpace($pair)) { throw "缺少 pair，无法设置目标。" }
+      if ([string]::IsNullOrWhiteSpace($projectText)) { throw "缺少 projectRoot，无法让 Codex 规划任务。" }
+      if ([string]::IsNullOrWhiteSpace($pair)) { throw "缺少 pair，无法让 Codex 规划任务。" }
       $project = Assert-AllowedProject $projectText
       Assert-AiRelayPairName $pair
       $goal = ([string]$form['goal']).Trim()
-      $task = ([string]$form['task']).Trim()
       $maxRounds = 3
       if ([string]$form['maxRounds'] -match '^\d+$') { $maxRounds = [int]$form['maxRounds'] }
       if ($maxRounds -lt 1) { $maxRounds = 1 }
       if ($maxRounds -gt 20) { $maxRounds = 20 }
-      if ([string]::IsNullOrWhiteSpace($goal) -and [string]::IsNullOrWhiteSpace($task)) {
-        throw "请至少填写目标或本轮任务。"
-      }
-      if ([string]::IsNullOrWhiteSpace($goal)) { $goal = $task }
-      if ([string]::IsNullOrWhiteSpace($task)) {
-        $task = "请围绕以下目标执行下一步最小任务，并在完成后写入 cc-report.md：`n`n$goal"
+      if ([string]::IsNullOrWhiteSpace($goal)) {
+        throw "请填写目标。"
       }
       $pairDir = Get-AiRelayPairDir $project $pair
       if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
+      $pairJson = Read-AiRelayPairJson $pairDir
+      $codexSessionId = [string]$pairJson.codexSessionId
+      if ([string]::IsNullOrWhiteSpace($codexSessionId)) {
+        throw "pair.json 缺少 codexSessionId，请先绑定/重绑 Codex。"
+      }
       $goalPath = Join-Path $pairDir 'goal.json'
       $inboxPath = Join-Path $pairDir 'cc-inbox.md'
+      $userGoalPath = Join-Path $pairDir 'user-goal.md'
+      $planPromptPath = Join-Path $pairDir 'codex-plan-prompt.md'
+      $planReplyPath = Join-Path $pairDir 'codex-plan-reply.md'
       Write-AiRelayJson ([ordered]@{
         pairId = $pair
         goal = $goal
-        status = 'ready'
+        status = 'planned'
         round = 0
         maxRounds = $maxRounds
         startedAt = (Get-Date).ToString('o')
@@ -595,28 +598,72 @@ function Handle-Action {
         lastDecision = ''
         lastNextInstruction = ''
       }) $goalPath
-      $taskText = @"
-# Agent Workloop Task - $pair
+      $userGoal = @"
+# User Goal - $pair
 
 ## Goal
 $goal
 
-## Current Task
-$task
-
-## Rules
-- Execute only the current task unless it is unsafe or ambiguous.
-- Keep changes minimal and scoped to this pair.
-- After execution, write .ai-relay/pairs/$pair/cc-report.md.
-- Include changed files, verification commands, risks, and conflict risk.
-- Do not paste long logs or full diffs.
-- Do not auto-push unless the task explicitly asks.
+Max rounds: $maxRounds
 "@
+      Set-Content -LiteralPath $userGoalPath -Value $userGoal -Encoding utf8
+      $context = Read-AiRelayTextFile (Join-Path $pairDir 'context.md')
+      $prompt = @"
+$context
+
+# 用户目标
+$goal
+
+# Codex 规划要求
+你是此 pair 的 Codex 指挥线程。请根据用户目标，生成给 Claude Code 的下一轮最小可执行任务。
+
+必须遵守：
+- 不修改业务代码。
+- 不使用 subagent。
+- 不启动 codex-with-cc。
+- 不使用 --last。
+- 不把完整项目代码塞进 prompt。
+- 只给 Claude Code 一个边界清晰、最小化、可执行的任务。
+- 如果目标信息不足，让 Claude Code 做只读巡检并返回压缩事实。
+- 如果可能与其他 pair 冲突，必须写入风险提醒。
+
+固定输出：
+## 给 Claude Code 的任务
+写成 Claude Code 可直接执行的任务。
+
+## 规划理由
+3-5 条。
+
+## 冲突风险
+说明可能冲突或无法判断。
+
+## 额度控制
+说明这一轮结束后是否需要回问 Codex。
+"@
+      Set-Content -LiteralPath $planPromptPath -Value $prompt -Encoding utf8
+      $codex = Get-Command codex -ErrorAction SilentlyContinue
+      if (-not $codex) { throw "codex CLI not found in PATH." }
+      Write-Host ("[{0}] PLAN task project={1} pair={2} codex={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $codexSessionId)
+      $codexOutput = Get-Content -LiteralPath $planPromptPath -Raw -Encoding utf8 | & $codex.Source exec resume $codexSessionId --sandbox read-only -o $planReplyPath - 2>&1 | Out-String
+      $exitCode = $LASTEXITCODE
+      Set-Content -LiteralPath (Join-Path $pairDir 'codex-plan.log') -Value $codexOutput -Encoding utf8
+      if ($exitCode -ne 0) {
+        throw "Codex 规划失败。ExitCode=$exitCode`n$codexOutput"
+      }
+      $planReply = Read-AiRelayTextFile $planReplyPath
+      if ([string]::IsNullOrWhiteSpace($planReply)) {
+        $planReply = $codexOutput
+      }
+      Set-Content -LiteralPath (Join-Path $pairDir 'codex-reply.md') -Value $planReply -Encoding utf8
+      $taskMatch = [regex]::Match($planReply, '## 给 Claude Code 的任务\s*([\s\S]*?)(?=\r?\n## |\z)')
+      $taskText = if ($taskMatch.Success) { $taskMatch.Groups[1].Value.Trim() } else { $planReply.Trim() }
+      if ([string]::IsNullOrWhiteSpace($taskText)) {
+        throw "Codex 规划结果为空，无法写入 cc-inbox.md。"
+      }
       Set-Content -LiteralPath $inboxPath -Value $taskText -Encoding utf8
-      Add-AiRelayLog -PairDir $pairDir -Event 'dashboard-set-task' -Detail "Goal: $goal`nMaxRounds=$maxRounds`nTask:`n$task"
+      Add-AiRelayLog -PairDir $pairDir -Event 'dashboard-codex-plan' -Detail "Goal: $goal`nMaxRounds=$maxRounds`nCodexSession=$codexSessionId"
       [void](Copy-AiRelayText $taskText)
-      Write-Host ("[{0}] SET task project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
-      Write-HttpText -Response $Response -Text (New-ResultHtml '目标和任务已设置' "<p>已更新 goal.json，并写入 cc-inbox.md。现在可以点击“让 CC 执行并打开终端”。</p><pre>$(Encode-Html $taskText)</pre>")
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Codex 已规划并下发任务' "<p>已更新 goal.json、user-goal.md，并由 Codex 规划后写入 cc-inbox.md。现在可以点击“让 CC 执行并打开终端”。</p><h2>写入 cc-inbox.md</h2><pre>$(Encode-Html $taskText)</pre><h2>Codex 完整回复</h2><pre>$(Encode-Html $planReply)</pre>")
       return
     }
 
@@ -641,6 +688,46 @@ $task
         try { & "$PSScriptRoot\ai-relay-bind-codex.ps1" -Pair $pair -CodexSessionId $codexSessionId -Force } finally { Pop-Location }
       }
       Write-HttpText -Response $Response -Text (New-ResultHtml 'Codex 绑定已更新' "<p>Pair 已绑定/重绑到 Codex session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
+    if ($path -eq '/action/codex-terminal') {
+      $project = Assert-AllowedProject (Decode-Query $query['projectRoot'])
+      $pair = Decode-Query $query['pair']
+      Assert-AiRelayPairName $pair
+      $pairDir = Get-AiRelayPairDir $project $pair
+      $pairJson = Read-AiRelayPairJson $pairDir
+      $codexSessionId = [string]$pairJson.codexSessionId
+      if ([string]::IsNullOrWhiteSpace($codexSessionId)) {
+        throw "pair.json 缺少 codexSessionId，请先绑定/重绑 Codex。"
+      }
+      $powershell = Get-Command powershell -ErrorAction SilentlyContinue
+      if (-not $powershell) { throw "powershell.exe not found." }
+      $terminalCommand = @"
+`$ErrorActionPreference = 'Continue'
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+  `$OutputEncoding = [System.Text.UTF8Encoding]::new()
+} catch {}
+Set-Location -LiteralPath '$($project.Replace("'", "''"))'
+Write-Host 'Agent Workloop Codex terminal'
+Write-Host 'Pair: $($pair.Replace("'", "''"))'
+Write-Host 'Project: $($project.Replace("'", "''"))'
+Write-Host 'Codex session: $($codexSessionId.Replace("'", "''"))'
+Write-Host ''
+codex resume -C '$($project.Replace("'", "''"))' --sandbox read-only '$($codexSessionId.Replace("'", "''"))'
+Write-Host ''
+Read-Host 'Codex 终端已退出，按 Enter 关闭窗口'
+"@
+      $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($terminalCommand))
+      Start-Process -FilePath $powershell.Source -ArgumentList @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-EncodedCommand',
+        $encodedCommand
+      ) -WorkingDirectory $project -WindowStyle Normal | Out-Null
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Codex 终端已打开' "<p>已打开绑定的 Codex session。</p><pre>$(Encode-Html $codexSessionId)</pre>")
       return
     }
 
