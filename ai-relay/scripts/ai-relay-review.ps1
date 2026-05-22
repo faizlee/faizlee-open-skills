@@ -180,7 +180,7 @@ $mdPath = Join-Path $OutDir "ai-relay-review-$pairId-$stamp.md"
 $htmlPath = Join-Path $OutDir "ai-relay-review-$pairId-$stamp.html"
 
 $md = [System.Text.StringBuilder]::new()
-[void]$md.AppendLine("# AI Relay 工作复盘报告")
+[void]$md.AppendLine("# Agent Workloop 工作复盘报告")
 [void]$md.AppendLine("")
 [void]$md.AppendLine('- Pair: `' + $pairId + '`')
 [void]$md.AppendLine('- 项目目录: `' + $projectRoot + '`')
@@ -280,7 +280,7 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>AI Relay 工作复盘报告 - $pairId</title>
+  <title>Agent Workloop 工作复盘报告 - $pairId</title>
   <style>
     body { font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #f6f8fa; color: #1f2328; line-height: 1.55; }
     main { max-width: 1120px; margin: 0 auto; min-height: 100vh; background: white; padding: 32px 28px 56px; }
@@ -302,7 +302,7 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
   [System.IO.File]::WriteAllText($htmlPath, $html, $encoding)
 }
 
-Write-Host "AI Relay review generated:"
+Write-Host "Agent Workloop review generated:"
 if ($Format -eq 'md' -or $Format -eq 'both') { Write-Host "Markdown: $mdPath" }
 if ($Format -eq 'html' -or $Format -eq 'both') { Write-Host "HTML: $htmlPath" }
 if ($Open) {

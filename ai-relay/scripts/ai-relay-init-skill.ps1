@@ -7,7 +7,7 @@ $sourceCodexSkill = Join-Path $root 'skills\codex-ai-relay\SKILL.md'
 $sourceClaudeSkill = Join-Path $root 'skills\claude-relay\SKILL.md'
 $sourceBindCommand = Join-Path $root 'commands\bind.md'
 $sourceRelayCommand = Join-Path $root 'commands\relay.md'
-$sourceGoalCommand = Join-Path $root 'commands\goal.md'
+$sourceWorkloopCommand = Join-Path $root 'commands\workloop.md'
 
 $codexSkillDir = Join-Path $HOME '.codex\skills\ai-relay'
 $claudeSkillDir = Join-Path $HOME '.claude\skills\relay'
@@ -46,8 +46,12 @@ if (Test-Path -LiteralPath (Split-Path -Parent $claudeSkillDir)) {
 if (Test-Path -LiteralPath $claudeCommandsDir) {
   Copy-RelayFile -Source $sourceBindCommand -Destination (Join-Path $claudeCommandsDir 'bind.md')
   Copy-RelayFile -Source $sourceRelayCommand -Destination (Join-Path $claudeCommandsDir 'relay.md')
-  if (Test-Path -LiteralPath $sourceGoalCommand) {
-    Copy-RelayFile -Source $sourceGoalCommand -Destination (Join-Path $claudeCommandsDir 'goal.md')
+  if (Test-Path -LiteralPath $sourceWorkloopCommand) {
+    Copy-RelayFile -Source $sourceWorkloopCommand -Destination (Join-Path $claudeCommandsDir 'workloop.md')
+  }
+  $oldGoalCommand = Join-Path $claudeCommandsDir 'goal.md'
+  if (Test-Path -LiteralPath $oldGoalCommand) {
+    Remove-Item -LiteralPath $oldGoalCommand -Force
   }
   Write-Host "Claude commands installed: $claudeCommandsDir"
 } else {

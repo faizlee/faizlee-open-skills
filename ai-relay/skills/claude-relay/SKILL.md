@@ -1,7 +1,7 @@
-# relay Skill
+# Agent Workloop Skill
 
 ## 目的
-让 Claude Code 与绑定的 Codex 指挥线程通过 .ai-relay/pairs/<pair>/ 互通。
+让 Claude Code 与绑定的 Codex 指挥线程通过 .ai-relay/pairs/<pair>/ 互通，并支持 Agent Workloop 目标闭环。
 
 ## /bind <pair>
 当用户输入 /bind <pair>：
@@ -67,12 +67,12 @@
 - 报告是给 Codex 做裁决的压缩事实。
 - 如果当前 pair 不明确，先读取 .ai-relay/current-pair.json；若仍不明确，要求用户指定 pair。
 
-## /goal <pair> <goal>
-当用户输入 /goal：
-1. 这是 goal loop，不是普通 relay。
+## /workloop <pair> <goal>
+当用户输入 /workloop：
+1. 这是 Agent Workloop，不是普通 relay。
 2. 调用：
    ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
-3. 执行脚本输出的 goal task。
+3. 执行脚本输出的 workloop task。
 4. 每完成一轮任务后：
    - 写 `.ai-relay/pairs/<pair>/cc-report.md`
    - 立即调用 `ai-relay-cc.ps1 -Pair <pair> -Mode report`

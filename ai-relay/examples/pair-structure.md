@@ -1,4 +1,4 @@
-# AI Relay Pair Structure
+# Agent Workloop Pair Structure
 
 示例结构，不包含真实 session id：
 

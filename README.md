@@ -14,7 +14,7 @@
 
 - [Claude Knowledge](./claude-knowledge/) - Intelligent project knowledge indexing system.
 - [Todo Database](./todo-database/) - Project TODO database management.
-- [AI Relay](./ai-relay/) - User-level Codex / Claude Code file relay with bind, relay, goal loop, history archive, Chinese audit reports, and local rule-based reviews.
+- [Agent Workloop](./ai-relay/) - Claude Code + Codex collaboration loop with bind, relay, workloop, history archive, Chinese audit reports, and local rule-based reviews.
 
 ---
 

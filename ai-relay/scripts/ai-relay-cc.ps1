@@ -188,7 +188,7 @@ function Update-AiRelayGoalAfterReply {
   $goalDir = Join-Path $PairDir 'goal'
   New-Item -ItemType Directory -Force -Path $goalDir | Out-Null
   $summary = @"
-# AI Relay Goal Summary
+# Agent Workloop Summary
 
 - Pair: $PairId
 - Status: $status

@@ -1,7 +1,7 @@
-# ai-relay Skill
+# Agent Workloop Skill
 
 ## 目的
-用户级轻量 relay 工作流，用于让同一项目内多个 Codex / Claude Code pair 通过项目内文件互通。
+用户级 Agent Workloop 工作流，用于让同一项目内多个 Codex / Claude Code pair 通过项目内文件互通，并支持可追踪的协作闭环。
 
 ## 核心规则
 - 一个 pair = 一个 Codex session id + 一个 Claude Code 会话。

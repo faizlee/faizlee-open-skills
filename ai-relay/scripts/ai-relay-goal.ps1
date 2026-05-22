@@ -85,7 +85,7 @@ $replyPath = Join-Path $pairDir 'codex-reply.md'
 switch ($Mode) {
   'start' {
     if ([string]::IsNullOrWhiteSpace($Goal)) {
-      throw "Please provide -Goal when starting a goal loop."
+      throw "Please provide -Goal when starting an Agent Workloop."
     }
     $state = [ordered]@{
       pairId = $pairId
@@ -101,12 +101,12 @@ switch ($Mode) {
     }
     Write-GoalState -PairDir $pairDir -State $state
     $task = @"
-# CC Goal Task - $pairId
+# Agent Workloop Task - $pairId
 
 ## Goal
 $Goal
 
-## Goal Loop Rules
+## Workloop Rules
 - Execute the next smallest step toward the goal.
 - After each execution round, write .ai-relay/pairs/$pairId/cc-report.md.
 - The report must include verification results and conflict risk.
@@ -124,8 +124,11 @@ $Goal
 - Validation is impossible or unsafe.
 "@
     Set-Content -LiteralPath $inboxPath -Value $task -Encoding utf8
-    Add-AiRelayLog -PairDir $pairDir -Event 'goal-start' -Detail "Goal loop started. MaxRounds=$MaxRounds`n$Goal"
+    Add-AiRelayLog -PairDir $pairDir -Event 'workloop-start' -Detail "Agent Workloop started. MaxRounds=$MaxRounds`n$Goal"
     [void](Copy-AiRelayText $task)
+    Write-Output "AI_WORKLOOP_STATUS=STARTED"
+    Write-Output "AI_WORKLOOP_PAIR=$pairId"
+    Write-Output "AI_WORKLOOP_MAX_ROUNDS=$MaxRounds"
     Write-Output "AI_RELAY_GOAL_STATUS=STARTED"
     Write-Output "AI_RELAY_GOAL_PAIR=$pairId"
     Write-Output "AI_RELAY_GOAL_MAX_ROUNDS=$MaxRounds"
@@ -134,8 +137,9 @@ $Goal
   'status' {
     $state = Read-GoalState $pairDir
     if (-not $state) {
+      Write-Output "AI_WORKLOOP_STATUS=NOT_STARTED"
       Write-Output "AI_RELAY_GOAL_STATUS=NOT_STARTED"
-      Write-Host "当前 pair 没有 goal loop。"
+      Write-Host "当前 pair 没有 Agent Workloop。"
       exit 0
     }
     $state | ConvertTo-Json -Depth 8
@@ -143,6 +147,7 @@ $Goal
   'stop' {
     $state = Read-GoalState $pairDir
     if (-not $state) {
+      Write-Output "AI_WORKLOOP_STATUS=NOT_STARTED"
       Write-Output "AI_RELAY_GOAL_STATUS=NOT_STARTED"
       exit 0
     }
@@ -150,13 +155,16 @@ $Goal
     $state.stopReason = if ($Reason) { $Reason } else { 'Stopped manually.' }
     $state.updatedAt = (Get-Date).ToString('o')
     Write-GoalState -PairDir $pairDir -State $state
-    Add-AiRelayLog -PairDir $pairDir -Event 'goal-stop' -Detail $state.stopReason
+    Add-AiRelayLog -PairDir $pairDir -Event 'workloop-stop' -Detail $state.stopReason
+    Write-Output "AI_WORKLOOP_STATUS=STOPPED"
+    Write-Output "AI_WORKLOOP_STOP_REASON=$($state.stopReason)"
     Write-Output "AI_RELAY_GOAL_STATUS=STOPPED"
     Write-Output "AI_RELAY_GOAL_STOP_REASON=$($state.stopReason)"
   }
   'summary' {
     $state = Read-GoalState $pairDir
     if (-not $state) {
+      Write-Output "AI_WORKLOOP_STATUS=NOT_STARTED"
       Write-Output "AI_RELAY_GOAL_STATUS=NOT_STARTED"
       exit 0
     }
@@ -181,7 +189,7 @@ $Goal
     New-Item -ItemType Directory -Force -Path $summaryDir | Out-Null
     $summaryPath = Join-Path $summaryDir ("goal-summary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".md")
     $summary = @"
-# AI Relay Goal Summary
+# Agent Workloop Summary
 
 - Pair: `$pairId`
 - Status: `$($state.status)`
@@ -196,6 +204,8 @@ $($state.goal)
 $next
 "@
     Set-Content -LiteralPath $summaryPath -Value $summary -Encoding utf8
+    Write-Output "AI_WORKLOOP_STATUS=$($state.status.ToString().ToUpperInvariant())"
+    Write-Output "AI_WORKLOOP_SUMMARY=$summaryPath"
     Write-Output "AI_RELAY_GOAL_STATUS=$($state.status.ToString().ToUpperInvariant())"
     Write-Output "AI_RELAY_GOAL_SUMMARY=$summaryPath"
     Write-Output $summary

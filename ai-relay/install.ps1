@@ -52,6 +52,10 @@ Get-ChildItem -LiteralPath $binRoot -Filter '*.ps1' -File | ForEach-Object {
 }
 Copy-Tree -Source $skillsSource -Destination (Join-Path $toolRoot 'skills')
 Copy-Tree -Source $commandsSource -Destination (Join-Path $toolRoot 'commands')
+$oldGoalCommand = Join-Path $toolRoot 'commands\goal.md'
+if (Test-Path -LiteralPath $oldGoalCommand) {
+  Remove-Item -LiteralPath $oldGoalCommand -Force
+}
 Copy-IfExists -Source (Join-Path $sourceRoot 'README.md') -Destination (Join-Path $toolRoot 'README.md')
 Copy-IfExists -Source (Join-Path $sourceRoot 'README.zh-CN.md') -Destination (Join-Path $toolRoot 'README.zh-CN.md')
 

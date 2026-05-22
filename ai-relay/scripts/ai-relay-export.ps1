@@ -80,7 +80,7 @@ $logPath = Join-Path $pairDir 'relay-log.md'
 $historyRoot = Join-Path $pairDir 'history'
 
 $md = [System.Text.StringBuilder]::new()
-[void]$md.AppendLine("# AI Relay 会话审计报告")
+[void]$md.AppendLine("# Agent Workloop 会话审计报告")
 [void]$md.AppendLine("")
 [void]$md.AppendLine('- Pair: `' + $pairId + '`')
 [void]$md.AppendLine('- 项目目录: `' + $projectRoot + '`')
@@ -197,7 +197,7 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>AI Relay 会话审计报告 - $pairId</title>
+  <title>Agent Workloop 会话审计报告 - $pairId</title>
   <style>
     body { font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif; margin: 0; color: #1f2328; line-height: 1.55; background: #f6f8fa; }
     main { max-width: 1180px; margin: 0 auto; padding: 32px 28px 56px; background: #ffffff; min-height: 100vh; }
@@ -211,7 +211,7 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
 </head>
 <body>
 <main>
-  <h1>AI Relay 会话审计报告</h1>
+  <h1>Agent Workloop 会话审计报告</h1>
   <p class="meta">Pair: <code>$(Encode-Html $pairId)</code> | 导出时间: $(Get-Date -Format o)</p>
   <p>项目目录：<code>$(Encode-Html $projectRoot)</code></p>
   <p>Pair 目录：<code>$(Encode-Html $pairDir)</code></p>
@@ -231,7 +231,7 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
   [System.IO.File]::WriteAllText($htmlPath, $html, $encoding)
 }
 
-Write-Host "AI Relay export generated:"
+Write-Host "Agent Workloop export generated:"
 if ($Format -eq 'md' -or $Format -eq 'both') { Write-Host "Markdown: $mdPath" }
 if ($Format -eq 'html' -or $Format -eq 'both') { Write-Host "HTML: $htmlPath" }
 if ($Open) {

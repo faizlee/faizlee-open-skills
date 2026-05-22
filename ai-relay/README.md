@@ -1,6 +1,6 @@
-# AI Relay
+# Agent Workloop
 
-Lightweight user-level relay for Codex / Claude Code pairs in the same project.
+Agent collaboration loop for Claude Code + Codex, with a lightweight file relay underneath.
 
 For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 
@@ -9,10 +9,10 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 - Installs once under `$HOME\.ai-tools`.
 - Stores per-project data under `.ai-relay/pairs/<pair>/`.
 - Binds one pair to one explicit Codex session id and one Claude Code session.
-- Relays Codex instructions to Claude Code through files.
-- Relays compressed Claude Code reports back to Codex.
+- Uses a lightweight relay to pass Codex instructions to Claude Code through files.
+- Relays compressed Claude Code reports back to Codex for review.
 - Claude Code auto relay checks unread Codex replies, unread inbox messages, and waiting-for-decision state.
-- Goal loop sends each completed Claude Code round to Codex, updates `goal.json`, and continues when Codex gives a next instruction.
+- Workloop sends each completed Claude Code round to Codex, updates `goal.json`, and continues when Codex gives a next instruction.
 - Archives every report round and exports Chinese Markdown/HTML audit reports.
 
 ## Hard Boundaries
@@ -40,6 +40,14 @@ ai-relay-cc.ps1 -Pair <pair> -Mode report
 ai-relay-export.ps1 -Pair <pair> -Format both
 ai-relay-review.ps1 -Pair <pair> -Format both
 ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
+```
+
+Claude Code slash commands:
+
+```text
+/bind <pair>
+/relay [pair]
+/workloop <pair> <goal>
 ```
 
 ## Verify

@@ -1,6 +1,6 @@
 For /relay [pair], do not inspect .ai-relay files manually and do not compare LastWriteTime yourself.
 
-Always delegate state handling to the user-level AI Relay script. It already checks, in order:
+Always delegate state handling to the user-level Agent Workloop relay script. It already checks, in order:
 
 1. unread codex-reply.md
 2. unread cc-inbox.md

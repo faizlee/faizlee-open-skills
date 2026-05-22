@@ -1,4 +1,4 @@
-Use the user-level AI Relay script, not a project-local .ai-relay script.
+Use the user-level Agent Workloop relay script, not a project-local .ai-relay script.
 
 Run this from the current project root:
 

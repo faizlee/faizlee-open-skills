@@ -1,11 +1,11 @@
-使用 AI Relay Goal Loop。它不是普通 `/relay`，而是“目标 -> 执行 -> 报告 -> Codex 裁决 -> 继续执行/完成”的闭环。
+使用 Agent Workloop。它不是普通 `/relay`，而是“目标 -> Agent 执行 -> 报告 -> Codex 裁决 -> Agent 继续执行/完成”的协作闭环。
 
 参数约定：
 - 第一个参数是 pair。
 - 后面的内容是 goal。
 - 如果没有写 goal，先要求用户补充目标，不要自行编造。
 
-在当前项目根目录运行：
+在当前项目根目录运行底层兼容脚本：
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-goal.ps1" -Pair "$ARGUMENTS" -Goal "$ARGUMENTS" -MaxRounds 5
 
@@ -13,7 +13,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-goal.ps1" -Pair "logicmap" -Goal "完成治理地图第二模块" -MaxRounds 5
 
-脚本打印 goal task 后，直接执行它。每一轮完成后：
+脚本打印 workloop 任务后，直接执行它。每一轮完成后：
 
 1. 写 `.ai-relay/pairs/<pair>/cc-report.md`。
 2. 立即运行：

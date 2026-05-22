@@ -1,12 +1,13 @@
-# AI Relay
+# Agent Workloop
 
-用户级轻量 relay 工具，用于让同一项目中的 Codex / Claude Code pair 通过项目内文件互通。
+面向本机 coding agent 的协作闭环工具。当前核心场景是 Claude Code 执行、Codex 审核裁决，底层通过项目内文件做轻量 relay。
 
 ## 适用场景
 
 - 你希望一个项目里同时存在多个 Codex / Claude Code pair。
 - Codex 负责验收、裁决、风险判断和下一轮最小任务指令。
 - Claude Code 负责执行、验证和写压缩报告。
+- 你希望围绕一个目标形成可控、可追踪、可复盘的 Agent Workloop。
 - 你不想使用 subagent、不想启动 codex-with-cc、不想用 `--last` 恢复错误会话。
 
 ## 核心规则
@@ -104,6 +105,14 @@ ai-relay-review.ps1 -Pair <pair> -Format both
 ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
 ```
 
+Claude Code slash command：
+
+```text
+/bind <pair>
+/relay [pair]
+/workloop <pair> <goal>
+```
+
 ## 审计报告
 
 导出当前 pair 的中文 Markdown + HTML 报告：
@@ -170,9 +179,9 @@ ai-relay-review.ps1 -Pair bug-typeerror -Format both
 
 如果要让 Claude Code 基于复盘材料写人工总结，可以把生成的 review markdown 交给 Claude Code；默认脚本只做本地规则分析。
 
-## Goal Loop
+## Agent Workloop
 
-Goal loop 是基于 relay 的多轮闭环：
+Agent Workloop 是基于 relay 的多轮协作闭环：
 
 ```text
 目标 -> Claude Code 执行 -> cc-report.md -> Codex 裁决 -> Claude Code 继续
@@ -191,7 +200,7 @@ Claude Code 规则：
 - `Mode report` 会读取 `cc-report.md`，用 `pair.json` 里的明确 `codexSessionId` 调用 Codex，并把裁决写入 `codex-reply.md`。
 - `Mode report` 会自动更新 `goal.json`，并写入 `goal/goal-summary-latest.md`。
 - 如果 Codex 回复中有下一轮指令，Claude Code 直接继续执行，不需要用户确认。
-- 如果 Codex 接受/完成，goal loop 停止。
+- 如果 Codex 接受/完成，workloop 停止。
 - 达到 `MaxRounds`、出现冲突风险或验证无法安全完成时停止。
 - 不要自动 push，除非用户明确要求。
 
@@ -206,6 +215,6 @@ Claude Code 规则：
 ## 限制
 
 - 不会自动把后台 Codex 输出插入当前 Codex UI。
-- 普通 relay 需要用户在 Codex / Claude Code 两侧触发 `/relay`；goal loop 中 Claude Code 每轮完成后可直接调用 `Mode report` 送审。
+- 普通 relay 需要用户在 Codex / Claude Code 两侧触发 `/relay`；workloop 中 Claude Code 每轮完成后可直接调用 `Mode report` 送审。
 - 多个写代码 pair 同时修改同一工作区可能冲突，建议使用 git worktree。
 - 已被覆盖且未归档的旧轮次无法完整恢复。
