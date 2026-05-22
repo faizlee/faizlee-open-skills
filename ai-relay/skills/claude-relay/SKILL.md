@@ -11,8 +11,27 @@
 3. 复制 bind-request.md 到剪贴板。
 4. 告诉用户：如果 Codex 在同一项目工作区，可直接在 Codex 中执行 /bind <pair>；否则把剪贴板内容粘贴到对应 Codex 会话，并执行 /bind <pair>。
 
-## /relay [pair]
-当用户输入 /relay：
+## /workloop <pair> [goal]
+当用户输入 /workloop：
+1. 这是唯一推荐的 Claude Code 侧入口，替代旧 `/relay`。
+2. 必须先调用统一入口脚本：
+   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1" <pair> <goal...>
+3. 如果用户只输入 pair、没有 goal，不要要求用户补充目标；脚本会执行 workloop auto，检查未读裁决、未读任务、等待裁决或空闲状态。
+4. 如果用户输入 pair + goal，脚本会启动 Agent Workloop 目标闭环。
+5. 执行脚本输出的任务或裁决。
+6. 每完成一轮任务后：
+   - 写 `.ai-relay/pairs/<pair>/cc-report.md`
+   - 立即调用 `ai-relay-cc.ps1 -Pair <pair> -Mode report`
+   - 读取脚本输出的 Codex 裁决；该脚本会自动更新 `goal.json` 和 `goal/goal-summary-latest.md`
+   - 如果 Codex 给出下一轮指令，直接继续执行，不需要用户确认
+   - 如果 Codex 接受/完成，停止
+7. 不要自动 push，除非用户明确要求。
+8. 达到 max rounds、出现冲突风险、验证无法安全完成时停止。
+
+## 旧 relay 行为
+用户侧不再安装 `/relay` 命令。旧 relay 的状态同步行为已经并入 `/workloop <pair>`。
+
+如果需要解释旧行为：
 1. 不要自行读取 `cc-inbox.md` / `cc-report.md` / `codex-reply.md` 做时间比较。
 2. 必须先调用用户级脚本，让脚本处理 relay 状态机：
    powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-cc.ps1" -Pair <pair> -Mode auto
@@ -66,18 +85,3 @@
 - 不要贴长日志。
 - 报告是给 Codex 做裁决的压缩事实。
 - 如果当前 pair 不明确，先读取 .ai-relay/current-pair.json；若仍不明确，要求用户指定 pair。
-
-## /workloop <pair> <goal>
-当用户输入 /workloop：
-1. 这是 Agent Workloop，不是普通 relay。
-2. 调用：
-   ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
-3. 执行脚本输出的 workloop task。
-4. 每完成一轮任务后：
-   - 写 `.ai-relay/pairs/<pair>/cc-report.md`
-   - 立即调用 `ai-relay-cc.ps1 -Pair <pair> -Mode report`
-   - 读取脚本输出的 Codex 裁决；该脚本会自动更新 `goal.json` 和 `goal/goal-summary-latest.md`
-   - 如果 Codex 给出下一轮指令，直接继续执行，不需要用户确认
-   - 如果 Codex 接受/完成，停止
-5. 不要自动 push，除非用户明确要求。
-6. 达到 max rounds、出现冲突风险、验证无法安全完成时停止。

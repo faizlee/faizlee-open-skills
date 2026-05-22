@@ -12,6 +12,7 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 - Uses a lightweight relay to pass Codex instructions to Claude Code through files.
 - Relays compressed Claude Code reports back to Codex for review.
 - Claude Code auto relay checks unread Codex replies, unread inbox messages, and waiting-for-decision state.
+- `/workloop` is the single Claude Code command: without a goal it checks message state; with a goal it starts the review loop.
 - Workloop sends each completed Claude Code round to Codex, updates `goal.json`, and continues when Codex gives a next instruction.
 - Archives every report round and exports Chinese Markdown/HTML audit reports.
 
@@ -34,6 +35,7 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 
 ```powershell
 ai-relay-bind-cc.ps1 -Pair <pair>
+ai-workloop.ps1 <pair> [goal...]
 ai-relay-bind-codex.ps1 -Pair <pair> -CodexSessionId <id>
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode report
@@ -46,8 +48,7 @@ Claude Code slash commands:
 
 ```text
 /bind <pair>
-/relay [pair]
-/workloop <pair> <goal>
+/workloop <pair> [goal]
 ```
 
 ## Verify

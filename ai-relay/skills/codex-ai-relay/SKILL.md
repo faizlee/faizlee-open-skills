@@ -23,8 +23,8 @@
    ai-relay-bind-codex.ps1 -Pair <pair> -CodexSessionId <id>
 5. 绑定完成后，该 Codex 会话就是此 pair 的指挥线程。
 
-## /relay [pair]
-当用户在 Codex 中输入 /relay：
+## /workloop [pair]
+当用户在 Codex 中输入 /workloop：
 1. 如果用户给出 pair，则使用该 pair。
 2. 如果没有给出 pair，则读取 .ai-relay/current-pair.json。
 3. 基于当前 Codex 对话上下文，生成“给 Claude Code 的下一轮最小任务指令”。
@@ -34,11 +34,11 @@
 6. 如果信息不足，不要编造；要求 Claude Code 补充压缩事实。
 7. 如果可能和其他 pair 冲突，必须提示。
 
-## /relay reply|report|prompt [pair]
-当用户要查看后台 relay 记录：
-1. /relay reply 读取并展示最新 codex-reply.md。
-2. /relay report 读取并展示最新 cc-report.md。
-3. /relay prompt 读取并展示最新 codex-prompt.md。
+## /workloop reply|report|prompt [pair]
+当用户要查看后台记录：
+1. /workloop reply 读取并展示最新 codex-reply.md。
+2. /workloop report 读取并展示最新 cc-report.md。
+3. /workloop prompt 读取并展示最新 codex-prompt.md。
 4. 可调用：
    ai-relay-codex.ps1 -Pair <pair> -ShowReply
    ai-relay-codex.ps1 -Pair <pair> -ShowReport

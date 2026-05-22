@@ -56,6 +56,10 @@ $oldGoalCommand = Join-Path $toolRoot 'commands\goal.md'
 if (Test-Path -LiteralPath $oldGoalCommand) {
   Remove-Item -LiteralPath $oldGoalCommand -Force
 }
+$oldRelayCommand = Join-Path $toolRoot 'commands\relay.md'
+if (Test-Path -LiteralPath $oldRelayCommand) {
+  Remove-Item -LiteralPath $oldRelayCommand -Force
+}
 Copy-IfExists -Source (Join-Path $sourceRoot 'README.md') -Destination (Join-Path $toolRoot 'README.md')
 Copy-IfExists -Source (Join-Path $sourceRoot 'README.zh-CN.md') -Destination (Join-Path $toolRoot 'README.zh-CN.md')
 

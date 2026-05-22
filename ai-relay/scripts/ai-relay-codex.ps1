@@ -119,5 +119,5 @@ Set-Content -LiteralPath $inboxPath -Value $payload -Encoding utf8
 Add-AiRelayLog -PairDir $pairDir -Event 'codex-to-cc' -Detail $content
 [void](Copy-AiRelayText $payload)
 
-Write-Host "已写入 cc-inbox.md，请在对应 Claude Code 会话中执行 /relay，或直接粘贴剪贴板内容。"
+Write-Host "已写入 cc-inbox.md，请在对应 Claude Code 会话中执行 /workloop <pair>，或直接粘贴剪贴板内容。"
 Write-Host "Inbox: $inboxPath"

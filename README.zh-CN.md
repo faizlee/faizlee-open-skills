@@ -14,7 +14,7 @@
 
 - [Claude Knowledge](./claude-knowledge/)：智能项目知识索引系统。
 - [Todo Database](./todo-database/)：项目 TODO 数据库管理。
-- [Agent Workloop](./ai-relay/)：Claude Code + Codex 协作闭环工具，支持 bind、relay、workloop、历史归档、中文审计报告和本地规则复盘。
+- [Agent Workloop](./ai-relay/)：Claude Code + Codex 协作闭环工具，支持 bind、workloop、历史归档、中文审计报告和本地规则复盘。
 
 ---
 

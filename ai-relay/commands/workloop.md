@@ -2,18 +2,19 @@
 
 参数约定：
 - 第一个参数是 pair。
-- 后面的内容是 goal。
-- 如果没有写 goal，先要求用户补充目标，不要自行编造。
+- 后面的内容是 goal，可选。
+- 如果没有写 goal，不要要求用户补充目标；直接执行 workloop auto，用它替代旧 `/relay`。
 
-在当前项目根目录运行底层兼容脚本：
+始终在当前项目根目录运行统一入口脚本：
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-goal.ps1" -Pair "$ARGUMENTS" -Goal "$ARGUMENTS" -MaxRounds 5
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1" $ARGUMENTS
 
-注意：上面的命令模板中 `$ARGUMENTS` 只是 Claude Code 命令参数占位。实际执行时必须把 pair 和 goal 拆开，例如：
+行为：
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-goal.ps1" -Pair "logicmap" -Goal "完成治理地图第二模块" -MaxRounds 5
+- `/workloop com_main`：检查未读 Codex 裁决、未读任务、等待裁决或空闲状态，相当于旧 `/relay com_main`。
+- `/workloop com_main 完成治理地图第二模块`：启动 Agent Workloop 目标闭环。
 
-脚本打印 workloop 任务后，直接执行它。每一轮完成后：
+如果脚本打印 workloop 任务，直接执行它。每一轮完成后：
 
 1. 写 `.ai-relay/pairs/<pair>/cc-report.md`。
 2. 立即运行：

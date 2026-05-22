@@ -70,18 +70,18 @@ Codex 侧绑定会使用明确的当前 Codex session id，写入：
 Codex 发指令给 Claude Code：
 
 ```text
-/relay
+/workloop
 ```
 
 Claude Code 拉取并执行：
 
 ```text
-/relay
+/workloop bug-typeerror
 ```
 
-Claude Code 完成后写 `cc-report.md`，再执行 `/relay` 汇报给 Codex。
+Claude Code 完成后写 `cc-report.md`，再由 workloop 调用 `Mode report` 汇报给 Codex。
 
-Claude Code 侧 `/relay` 的 auto 状态机会按顺序检查：
+Claude Code 侧 `/workloop <pair>` 不带 goal 时，会按顺序检查：
 
 1. `codex-reply.md` 是否有未读 Codex 裁决。
 2. `cc-inbox.md` 是否有未读新任务。
@@ -109,8 +109,7 @@ Claude Code slash command：
 
 ```text
 /bind <pair>
-/relay [pair]
-/workloop <pair> <goal>
+/workloop <pair> [goal]
 ```
 
 ## 审计报告
@@ -190,8 +189,12 @@ Agent Workloop 是基于 relay 的多轮协作闭环：
 启动：
 
 ```powershell
+ai-workloop.ps1 logicmap
+ai-workloop.ps1 logicmap 完成治理地图第二模块
 ai-relay-goal.ps1 -Pair logicmap -Goal "完成治理地图第二模块" -MaxRounds 5
 ```
+
+`/workloop <pair>` 不带 goal 时，会执行原 `/relay <pair>` 的状态同步能力：检查未读 Codex 裁决、未读任务、等待裁决或空闲状态。
 
 Claude Code 规则：
 
@@ -215,6 +218,6 @@ Claude Code 规则：
 ## 限制
 
 - 不会自动把后台 Codex 输出插入当前 Codex UI。
-- 普通 relay 需要用户在 Codex / Claude Code 两侧触发 `/relay`；workloop 中 Claude Code 每轮完成后可直接调用 `Mode report` 送审。
+- `/workloop <pair>` 负责状态同步；`/workloop <pair> <goal>` 负责目标闭环。不会自动把后台 Codex 输出插入当前 Codex UI。
 - 多个写代码 pair 同时修改同一工作区可能冲突，建议使用 git worktree。
 - 已被覆盖且未归档的旧轮次无法完整恢复。
