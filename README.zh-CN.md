@@ -14,7 +14,7 @@
 
 - [Claude Knowledge](./claude-knowledge/)：智能项目知识索引系统。
 - [Todo Database](./todo-database/)：项目 TODO 数据库管理。
-- [AI Relay](./ai-relay/)：用户级 Codex / Claude Code 文件中转工具，支持 bind、relay、历史归档、中文审计报告和本地规则复盘。
+- [AI Relay](./ai-relay/)：用户级 Codex / Claude Code 文件中转工具，支持 bind、relay、goal loop、历史归档、中文审计报告和本地规则复盘。
 
 ---
 

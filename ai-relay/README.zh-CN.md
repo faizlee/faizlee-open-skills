@@ -101,6 +101,7 @@ ai-relay-list.ps1
 ai-relay-open.ps1 -Pair <pair>
 ai-relay-export.ps1 -Pair <pair> -Format both
 ai-relay-review.ps1 -Pair <pair> -Format both
+ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
 ```
 
 ## 审计报告
@@ -168,6 +169,29 @@ ai-relay-review.ps1 -Pair bug-typeerror -Format both
 - 下一步建议
 
 如果要让 Claude Code 基于复盘材料写人工总结，可以把生成的 review markdown 交给 Claude Code；默认脚本只做本地规则分析。
+
+## Goal Loop
+
+Goal loop 是基于 relay 的多轮闭环：
+
+```text
+目标 -> Claude Code 执行 -> cc-report.md -> Codex 裁决 -> Claude Code 继续
+```
+
+启动：
+
+```powershell
+ai-relay-goal.ps1 -Pair logicmap -Goal "完成治理地图第二模块" -MaxRounds 5
+```
+
+Claude Code 规则：
+
+- 每轮完成后必须写 `cc-report.md`。
+- 写完报告后立即执行 `ai-relay-cc.ps1 -Pair <pair> -Mode report`。
+- 如果 Codex 回复中有下一轮指令，Claude Code 直接继续执行，不需要用户确认。
+- 如果 Codex 接受/完成，goal loop 停止。
+- 达到 `MaxRounds`、出现冲突风险或验证无法安全完成时停止。
+- 不要自动 push，除非用户明确要求。
 
 ## 验证
 

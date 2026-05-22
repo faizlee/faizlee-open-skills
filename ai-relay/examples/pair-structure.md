@@ -26,4 +26,7 @@
       exports/
         ai-relay-bug-typeerror-20260521-154437.md
         ai-relay-bug-typeerror-20260521-154437.html
+      goal/
+        goal-summary-20260521-160000.md
+      goal.json
 ```

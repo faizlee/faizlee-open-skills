@@ -38,6 +38,7 @@ ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode report
 ai-relay-export.ps1 -Pair <pair> -Format both
 ai-relay-review.ps1 -Pair <pair> -Format both
+ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
 ```
 
 ## Verify

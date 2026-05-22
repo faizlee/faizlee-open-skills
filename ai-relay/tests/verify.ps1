@@ -17,6 +17,7 @@ $required = @(
   'ai-relay-list.ps1',
   'ai-relay-open.ps1',
   'ai-relay-export.ps1',
+  'ai-relay-goal.ps1',
   'ai-relay-review.ps1',
   'ai-relay-init-skill.ps1'
 )

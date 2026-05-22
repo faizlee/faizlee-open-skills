@@ -66,3 +66,18 @@
 - 不要贴长日志。
 - 报告是给 Codex 做裁决的压缩事实。
 - 如果当前 pair 不明确，先读取 .ai-relay/current-pair.json；若仍不明确，要求用户指定 pair。
+
+## /goal <pair> <goal>
+当用户输入 /goal：
+1. 这是 goal loop，不是普通 relay。
+2. 调用：
+   ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
+3. 执行脚本输出的 goal task。
+4. 每完成一轮任务后：
+   - 写 `.ai-relay/pairs/<pair>/cc-report.md`
+   - 立即调用 `ai-relay-cc.ps1 -Pair <pair> -Mode report`
+   - 读取 Codex 裁决
+   - 如果 Codex 给出下一轮指令，直接继续执行，不需要用户确认
+   - 如果 Codex 接受/完成，停止
+5. 不要自动 push，除非用户明确要求。
+6. 达到 max rounds、出现冲突风险、验证无法安全完成时停止。
