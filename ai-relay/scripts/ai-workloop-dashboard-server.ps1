@@ -314,19 +314,16 @@ function Handle-Action {
       }) $statusPath
       $powershell = Get-Command powershell -ErrorAction SilentlyContinue
       if (-not $powershell) { throw "powershell.exe not found." }
-      $psi = [System.Diagnostics.ProcessStartInfo]::new()
-      $psi.FileName = $powershell.Source
-      [void]$psi.ArgumentList.Add('-NoProfile')
-      [void]$psi.ArgumentList.Add('-ExecutionPolicy')
-      [void]$psi.ArgumentList.Add('Bypass')
-      [void]$psi.ArgumentList.Add('-File')
-      [void]$psi.ArgumentList.Add((Join-Path $PSScriptRoot 'ai-workloop-cc-runner.ps1'))
-      [void]$psi.ArgumentList.Add('-Pair')
-      [void]$psi.ArgumentList.Add($pair)
-      $psi.WorkingDirectory = $project
-      $psi.UseShellExecute = $false
-      $psi.CreateNoWindow = $true
-      $process = [System.Diagnostics.Process]::Start($psi)
+      $runnerPath = Join-Path $PSScriptRoot 'ai-workloop-cc-runner.ps1'
+      $process = Start-Process -FilePath $powershell.Source -ArgumentList @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $runnerPath,
+        '-Pair',
+        $pair
+      ) -WorkingDirectory $project -WindowStyle Hidden -PassThru
       Write-Host ("[{0}] cc-runner started pid={1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $process.Id)
       $html = New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix
       Write-HttpText -Response $Response -Text $html
