@@ -24,6 +24,7 @@ if (-not (Test-Path -LiteralPath $pairDir)) {
 }
 
 $outPath = Join-Path $pairDir 'cc-runner-output.md'
+$streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
 $statusPath = Join-Path $pairDir 'cc-runner-status.json'
 
 function Write-CcRunnerStatus {
@@ -39,9 +40,58 @@ function Write-CcRunnerStatus {
     message = $Message
     exitCode = $ExitCode
     outputPath = $outPath
+    streamPath = $streamPath
     updatedAt = (Get-Date).ToString('o')
     processId = $PID
   }) $statusPath
+}
+
+function Get-JsonTextFragments {
+  param(
+    $Value,
+    [string]$Name = ''
+  )
+  $items = @()
+  if ($null -eq $Value) {
+    return $items
+  }
+  if ($Value -is [string]) {
+    if ($Name -match '^(text|result|message|error)$' -and -not [string]::IsNullOrWhiteSpace($Value)) {
+      return @($Value)
+    }
+    return $items
+  }
+  if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
+    foreach ($entry in $Value) {
+      $items += Get-JsonTextFragments -Value $entry -Name $Name
+    }
+    return $items
+  }
+  $props = $Value.PSObject.Properties
+  foreach ($prop in $props) {
+    $items += Get-JsonTextFragments -Value $prop.Value -Name $prop.Name
+  }
+  return $items
+}
+
+function Convert-StreamJsonLineToText {
+  param([string]$Line)
+  if ([string]::IsNullOrWhiteSpace($Line)) {
+    return ''
+  }
+  try {
+    $obj = $Line | ConvertFrom-Json
+    $type = if ($obj.type) { [string]$obj.type } else { 'event' }
+    $fragments = @(Get-JsonTextFragments -Value $obj | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    if ($fragments.Count -gt 0) {
+      return "[$type] " + ($fragments -join "`n")
+    }
+    if ($obj.type) {
+      return "[$type]"
+    }
+  } catch {
+  }
+  return $Line
 }
 
 $pairJson = Read-AiRelayPairJson $pairDir
@@ -84,7 +134,15 @@ if (-not $claude) {
   throw "claude CLI not found in PATH."
 }
 
-$args = @('--print', '--resume', $ccSessionId, '--permission-mode', $PermissionMode, '--max-budget-usd', ([string]$MaxBudgetUsd), $prompt)
+$args = @(
+  '--print',
+  '--resume', $ccSessionId,
+  '--permission-mode', $PermissionMode,
+  '--max-budget-usd', ([string]$MaxBudgetUsd),
+  '--output-format', 'stream-json',
+  '--include-partial-messages',
+  $prompt
+)
 
 Write-Output "AI_WORKLOOP_CC_RUNNER_PAIR=$pairId"
 Write-Output "AI_WORKLOOP_CC_RUNNER_SESSION=$ccSessionId"
@@ -94,7 +152,7 @@ Write-Output "AI_WORKLOOP_CC_RUNNER_OUTPUT=$outPath"
 if ($DryRun) {
   Write-CcRunnerStatus -Status 'dry-run' -Message 'Dry run completed.'
   Write-Output "AI_WORKLOOP_CC_RUNNER_DRYRUN=1"
-  Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd <prompt>"
+  Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --output-format stream-json --include-partial-messages <prompt>"
   exit 0
 }
 
@@ -109,13 +167,25 @@ pair=$pairId
 source=$sourcePath
 claudeSessionId=$ccSessionId
 
-Claude CLI is running in --print mode. Some Claude CLI versions do not stream partial stdout, so this file may stay unchanged until the command finishes.
+Claude CLI is running with --output-format stream-json and --include-partial-messages.
+Raw stream is written to:
+$streamPath
 
 "@
   Set-Content -LiteralPath $outPath -Value $startText -Encoding utf8
-  $outputLines = & $claude.Source @args 2>&1 | Tee-Object -FilePath $outPath
+  Set-Content -LiteralPath $streamPath -Value '' -Encoding utf8
+  $outputBuffer = New-Object System.Collections.Generic.List[string]
+  & $claude.Source @args 2>&1 | ForEach-Object {
+    $line = [string]$_
+    Add-Content -LiteralPath $streamPath -Value $line -Encoding utf8
+    $displayLine = Convert-StreamJsonLineToText -Line $line
+    if (-not [string]::IsNullOrWhiteSpace($displayLine)) {
+      Add-Content -LiteralPath $outPath -Value $displayLine -Encoding utf8
+      [void]$outputBuffer.Add($displayLine)
+    }
+  }
   $exitCode = $LASTEXITCODE
-  $output = $outputLines | Out-String
+  $output = $outputBuffer | Out-String
   if ($exitCode -ne 0) {
     Add-AiRelayLog -PairDir $pairDir -Event 'cc-runner-failed' -Detail "ExitCode=$exitCode`n$output"
     Write-CcRunnerStatus -Status 'failed' -Message "claude runner failed. Output written to $outPath" -ExitCode $exitCode

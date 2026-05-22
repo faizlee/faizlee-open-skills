@@ -148,6 +148,7 @@ function New-CcRunnerStatusHtml {
   $pairDir = Get-AiRelayPairDir $Project $Pair
   $statusPath = Join-Path $pairDir 'cc-runner-status.json'
   $outputPath = Join-Path $pairDir 'cc-runner-output.md'
+  $streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
   $reportPath = Join-Path $pairDir 'cc-report.md'
   $status = $null
   if (Test-Path -LiteralPath $statusPath) {
@@ -161,6 +162,9 @@ function New-CcRunnerStatusHtml {
   $message = if ($status -and $status.message) { [string]$status.message } else { '尚未写入状态文件。' }
   $updatedAt = if ($status -and $status.updatedAt) { [string]$status.updatedAt } else { '' }
   $processId = if ($status -and $status.processId) { [string]$status.processId } else { '' }
+  if ($status -and $status.streamPath) {
+    $streamPath = [string]$status.streamPath
+  }
   $output = ''
   if (Test-Path -LiteralPath $outputPath) {
     $output = Get-Content -LiteralPath $outputPath -Raw -Encoding utf8
@@ -216,6 +220,7 @@ function New-CcRunnerStatusHtml {
       <dt>进程 ID</dt><dd>$(Encode-Html $processId)</dd>
       <dt>报告状态</dt><dd>$(Encode-Html $reportInfo)</dd>
       <dt>输出文件</dt><dd>$(Encode-Html $outputPath)</dd>
+      <dt>原始流</dt><dd>$(Encode-Html $streamPath)</dd>
     </dl>
     <h2>输出片段</h2>
     <pre>$(Encode-Html $output)</pre>
