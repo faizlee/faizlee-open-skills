@@ -2,7 +2,7 @@ param(
   [Parameter(Mandatory=$true)][string]$Pair,
   [ValidateSet('inbox','reply')][string]$Source = 'inbox',
   [ValidateSet('default','acceptEdits','auto','dontAsk','plan')][string]$PermissionMode = 'default',
-  [decimal]$MaxBudgetUsd = 0.50,
+  [Nullable[decimal]]$MaxBudgetUsd = $null,
   [switch]$DryRun
 )
 
@@ -201,12 +201,23 @@ $args = @(
   '--print',
   '--resume', $ccSessionId,
   '--permission-mode', $PermissionMode,
-  '--max-budget-usd', ([string]$MaxBudgetUsd),
   '--verbose',
   '--output-format', 'stream-json',
   '--include-partial-messages',
   $prompt
 )
+if ($MaxBudgetUsd -ne $null) {
+  $args = @(
+    '--print',
+    '--resume', $ccSessionId,
+    '--permission-mode', $PermissionMode,
+    '--max-budget-usd', ([string]$MaxBudgetUsd),
+    '--verbose',
+    '--output-format', 'stream-json',
+    '--include-partial-messages',
+    $prompt
+  )
+}
 
 Write-Output "AI_WORKLOOP_CC_RUNNER_PAIR=$pairId"
 Write-Output "AI_WORKLOOP_CC_RUNNER_SESSION=$ccSessionId"
@@ -216,12 +227,17 @@ Write-Output "AI_WORKLOOP_CC_RUNNER_OUTPUT=$outPath"
 if ($DryRun) {
   Write-CcRunnerStatus -Status 'dry-run' -Message 'Dry run completed.'
   Write-Output "AI_WORKLOOP_CC_RUNNER_DRYRUN=1"
-  Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --verbose --output-format stream-json --include-partial-messages <prompt>"
+  if ($MaxBudgetUsd -ne $null) {
+    Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --verbose --output-format stream-json --include-partial-messages <prompt>"
+  } else {
+    Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --verbose --output-format stream-json --include-partial-messages <prompt>"
+  }
   exit 0
 }
 
-Add-AiRelayLog -PairDir $pairDir -Event 'cc-runner-start' -Detail "Running Claude Code runner. Source=$Source PermissionMode=$PermissionMode MaxBudgetUsd=$MaxBudgetUsd"
-Write-CcRunnerStatus -Status 'running' -Message "Claude Code runner started. Source=$Source PermissionMode=$PermissionMode MaxBudgetUsd=$MaxBudgetUsd"
+$budgetText = if ($MaxBudgetUsd -ne $null) { "MaxBudgetUsd=$MaxBudgetUsd" } else { "MaxBudgetUsd=unlimited" }
+Add-AiRelayLog -PairDir $pairDir -Event 'cc-runner-start' -Detail "Running Claude Code runner. Source=$Source PermissionMode=$PermissionMode $budgetText"
+Write-CcRunnerStatus -Status 'running' -Message "Claude Code runner started. Source=$Source PermissionMode=$PermissionMode $budgetText"
 Push-Location $projectRoot
 try {
   $startText = @"

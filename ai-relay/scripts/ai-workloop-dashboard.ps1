@@ -164,6 +164,8 @@ function Get-WorkloopPairRow {
   $replyPath = Join-Path $PairDir 'codex-reply.md'
   $replyReadPath = Join-Path $PairDir 'codex-reply.read.md'
   $historyRoot = Join-Path $PairDir 'history'
+  $runnerStatusPath = Join-Path $PairDir 'cc-runner-status.json'
+  $runnerStatus = Read-WorkloopJson $runnerStatusPath
 
   $unreadReply = Test-WorkloopUnread -SourcePath $replyPath -ReadPath $replyReadPath
   $unreadInbox = Test-WorkloopUnread -SourcePath $inboxPath -ReadPath $inboxReadPath
@@ -193,6 +195,10 @@ function Get-WorkloopPairRow {
   if (Test-Path -LiteralPath $historyRoot) {
     $historyCount = @(Get-ChildItem -LiteralPath $historyRoot -Directory -ErrorAction SilentlyContinue).Count
   }
+  $sourceText = Read-WorkloopText $inboxPath
+  $sourceChars = if ($sourceText) { $sourceText.Length } else { 0 }
+  $runnerStatusText = if ($runnerStatus -and $runnerStatus.status) { [string]$runnerStatus.status } else { '' }
+  $runnerUpdatedAt = if ($runnerStatus -and $runnerStatus.updatedAt) { [string]$runnerStatus.updatedAt } else { '' }
 
   $reply = Read-WorkloopText $replyPath
   $lastTime = @($reportTime, $replyTime, (Get-WorkloopFileTime $inboxPath)) |
@@ -221,6 +227,11 @@ function Get-WorkloopPairRow {
     HealthIssues = @($health.Issues)
     LastUpdated = if ($lastTime) { $lastTime.ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
     HistoryCount = $historyCount
+    CcRunnerStatus = $runnerStatusText
+    CcRunnerUpdatedAt = $runnerUpdatedAt
+    CcRunnerSource = 'cc-inbox.md'
+    CcRunnerSourceChars = $sourceChars
+    CcRunnerBudget = '不设置上限'
     PairDir = $PairDir
     HistoryDir = $historyRoot
     InboxPath = $inboxPath
@@ -315,9 +326,18 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   [void]$cards.AppendLine("<div><dt>轮次</dt><dd>$(Encode-WorkloopHtml $roundText)</dd></div>")
   [void]$cards.AppendLine("<div><dt>最新裁决</dt><dd>$(Encode-WorkloopHtml $row.LastDecision)</dd></div>")
   [void]$cards.AppendLine("<div><dt>历史轮次</dt><dd>$(Encode-WorkloopHtml $row.HistoryCount)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>CC 会话</dt><dd><code>$(Encode-WorkloopHtml $row.CcSessionId)</code></dd></div>")
+  [void]$cards.AppendLine("<div><dt>Runner 状态</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerStatus) $(Encode-WorkloopHtml $row.CcRunnerUpdatedAt)</dd></div>")
   [void]$cards.AppendLine("<div><dt>最后更新</dt><dd>$(Encode-WorkloopHtml $row.LastUpdated)</dd></div>")
   [void]$cards.AppendLine("<div><dt>Pair 目录</dt><dd><code>$(Encode-WorkloopHtml $row.PairDir)</code></dd></div>")
   [void]$cards.AppendLine("</dl>")
+  [void]$cards.AppendLine("<section class='runner-preview'><h3>CC 执行预览</h3><dl>")
+  [void]$cards.AppendLine("<div><dt>恢复会话</dt><dd><code>$(Encode-WorkloopHtml $row.CcSessionId)</code></dd></div>")
+  [void]$cards.AppendLine("<div><dt>读取来源</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerSource)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>任务字符数</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerSourceChars)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>历史轮数</dt><dd>$(Encode-WorkloopHtml $row.HistoryCount)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>预算上限</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerBudget)</dd></div>")
+  [void]$cards.AppendLine("</dl></section>")
   [void]$cards.AppendLine("<section class='actions' aria-label='操作辅助'>")
   [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $command)'>复制 /workloop</button>")
   [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $psCommand)'>复制 PowerShell</button>")
@@ -424,6 +444,9 @@ $html = @"
     .actions button.copied { background:#e7f2ed; border-color:var(--accent); color:var(--accent); }
     .actions .danger-action { border-color:#d6b07b; background:#fff8ed; }
     .health-box { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
+    .runner-preview { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
+    .runner-preview h3 { margin:0 0 8px; font-size:13px; color:var(--muted); }
+    .runner-preview dl { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin:0; }
     .health-box h3 { margin:0 0 6px; font-size:13px; color:var(--muted); }
     .health-box ul { margin:0; padding-left:18px; font-size:13px; }
     .health-box p { margin:0; color:var(--muted); font-size:13px; }
