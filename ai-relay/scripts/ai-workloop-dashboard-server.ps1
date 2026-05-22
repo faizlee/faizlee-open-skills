@@ -24,12 +24,20 @@ function Write-HttpText {
     [string]$ContentType = 'text/html; charset=utf-8',
     [int]$StatusCode = 200
   )
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
-  $Response.StatusCode = $StatusCode
-  $Response.ContentType = $ContentType
-  $Response.ContentLength64 = $bytes.Length
-  $Response.OutputStream.Write($bytes, 0, $bytes.Length)
-  $Response.OutputStream.Close()
+  try {
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    $Response.StatusCode = $StatusCode
+    $Response.ContentType = $ContentType
+    $Response.ContentLength64 = $bytes.Length
+    $Response.OutputStream.Write($bytes, 0, $bytes.Length)
+  } catch {
+    Write-Host ("[{0}] HTTP response write skipped: {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $_.Exception.Message)
+  } finally {
+    try {
+      $Response.OutputStream.Close()
+    } catch {
+    }
+  }
 }
 
 function Encode-Html {
