@@ -33,6 +33,14 @@ function Write-CcRunnerStatus {
     [string]$Message = '',
     [int]$ExitCode = 0
   )
+  $existingStatus = $null
+  if (Test-Path -LiteralPath $statusPath) {
+    try {
+      $existingStatus = Get-Content -LiteralPath $statusPath -Raw -Encoding utf8 | ConvertFrom-Json
+    } catch {
+      $existingStatus = $null
+    }
+  }
   Write-AiRelayJson ([ordered]@{
     pairId = $pairId
     projectRoot = $projectRoot
@@ -41,6 +49,8 @@ function Write-CcRunnerStatus {
     exitCode = $ExitCode
     outputPath = $outPath
     streamPath = $streamPath
+    stdoutPath = if ($existingStatus -and $existingStatus.stdoutPath) { [string]$existingStatus.stdoutPath } else { '' }
+    stderrPath = if ($existingStatus -and $existingStatus.stderrPath) { [string]$existingStatus.stderrPath } else { '' }
     updatedAt = (Get-Date).ToString('o')
     processId = $PID
   }) $statusPath
@@ -88,6 +98,9 @@ function Convert-StreamJsonLineToText {
         if ($obj.event.delta.text) {
           return [string]$obj.event.delta.text
         }
+        if ($obj.event.delta.thinking) {
+          return [string]$obj.event.delta.thinking
+        }
         if ($obj.event.delta.partial_json) {
           return "[tool input] $($obj.event.delta.partial_json)"
         }
@@ -102,10 +115,10 @@ function Convert-StreamJsonLineToText {
       if ($eventType -eq 'message_delta' -and $obj.event.delta -and $obj.event.delta.stop_reason) {
         return "[message] stop_reason=$($obj.event.delta.stop_reason)"
       }
-      if ($eventType -in @('content_block_stop','message_stop')) {
-        return "[$eventType]"
+      if ($eventType -in @('content_block_stop','message_stop','message_start')) {
+        return ''
       }
-      return "[$eventType]"
+      return ''
     }
     if ($type -eq 'assistant' -and $obj.message -and $obj.message.content) {
       $parts = @()

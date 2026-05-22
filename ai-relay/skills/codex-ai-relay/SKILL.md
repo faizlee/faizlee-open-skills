@@ -1,3 +1,8 @@
+---
+name: ai-relay
+description: User-level Agent Workloop for coordinating Codex and Claude Code pairs through project-local .ai-relay files.
+---
+
 # Agent Workloop Skill
 
 ## 目的
