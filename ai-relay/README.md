@@ -12,6 +12,7 @@ For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 - Relays Codex instructions to Claude Code through files.
 - Relays compressed Claude Code reports back to Codex.
 - Claude Code auto relay checks unread Codex replies, unread inbox messages, and waiting-for-decision state.
+- Goal loop sends each completed Claude Code round to Codex, updates `goal.json`, and continues when Codex gives a next instruction.
 - Archives every report round and exports Chinese Markdown/HTML audit reports.
 
 ## Hard Boundaries

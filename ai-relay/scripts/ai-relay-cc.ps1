@@ -94,6 +94,120 @@ function Test-AiRelayWaitingForCodexReply {
   return ((Get-Item -LiteralPath $reportPath).LastWriteTime -gt (Get-Item -LiteralPath $replyPath).LastWriteTime)
 }
 
+function Get-AiRelayReplyDecision {
+  param([string]$Reply)
+  if ($Reply -match '## 1\. 验收判断\s*[\r\n]+([^\r\n]+)') {
+    return $Matches[1].Trim()
+  }
+  if ($Reply -match '不接受') { return '不接受' }
+  if ($Reply -match '部分接受') { return '部分接受' }
+  if ($Reply -match '接受|完成') { return '接受' }
+  return '无法判断'
+}
+
+function Get-AiRelayNextInstruction {
+  param([string]$Reply)
+  $patterns = @(
+    '## 4\. 给 Claude Code 的下一轮指令\s*([\s\S]*?)(?=\r?\n## 5\.|\z)',
+    '## 下一步\s*([\s\S]*?)(?=\r?\n## |\z)',
+    '## 给 Claude Code 的下一轮指令\s*([\s\S]*?)(?=\r?\n## |\z)'
+  )
+  foreach ($pattern in $patterns) {
+    $m = [regex]::Match($Reply, $pattern)
+    if ($m.Success) {
+      $text = $m.Groups[1].Value.Trim()
+      if (-not [string]::IsNullOrWhiteSpace($text)) { return $text }
+    }
+  }
+  return ''
+}
+
+function Test-AiRelayGoalDone {
+  param([string]$Reply, [string]$Decision, [string]$NextInstruction)
+  if ($Decision -match '^接受' -and ($Reply -match '本轮完成|完成|不需要返工|不需要继续|无需继续')) { return $true }
+  if ([string]::IsNullOrWhiteSpace($NextInstruction) -and $Decision -match '^接受') { return $true }
+  if ($NextInstruction -match '无|不需要|无需|停止|完成') { return $true }
+  return $false
+}
+
+function Update-AiRelayGoalAfterReply {
+  param(
+    [string]$PairDir,
+    [string]$PairId,
+    [string]$Reply,
+    [string]$HistoryId
+  )
+  $goalPath = Join-Path $PairDir 'goal.json'
+  if (-not (Test-Path -LiteralPath $goalPath)) { return }
+
+  $goal = Get-Content -LiteralPath $goalPath -Raw -Encoding utf8 | ConvertFrom-Json
+  if (-not $goal) { return }
+  if ($goal.status -notin @('running','started')) { return }
+
+  $decision = Get-AiRelayReplyDecision $Reply
+  $next = Get-AiRelayNextInstruction $Reply
+  $round = 0
+  if ($goal.round -ne $null) { $round = [int]$goal.round }
+  $round++
+
+  $maxRounds = 5
+  if ($goal.maxRounds -ne $null) { $maxRounds = [int]$goal.maxRounds }
+
+  $status = 'running'
+  $stopReason = ''
+  if (Test-AiRelayGoalDone -Reply $Reply -Decision $decision -NextInstruction $next) {
+    $status = 'completed'
+    $stopReason = 'Codex accepted/completed the goal.'
+  } elseif ($round -ge $maxRounds) {
+    $status = 'stopped'
+    $stopReason = 'Max rounds reached.'
+  } elseif ($Reply -match '冲突风险.*需要.*用户|人工裁决|需要用户') {
+    $status = 'stopped'
+    $stopReason = 'Codex requested user decision or reported conflict risk.'
+  }
+  $startedAt = [string]$goal.startedAt
+  if ($goal.startedAt -is [datetime]) {
+    $startedAt = $goal.startedAt.ToString('o')
+  }
+
+  $updated = [ordered]@{
+    pairId = [string]$goal.pairId
+    goal = [string]$goal.goal
+    status = $status
+    round = $round
+    maxRounds = $maxRounds
+    startedAt = $startedAt
+    updatedAt = (Get-Date).ToString('o')
+    stopReason = $stopReason
+    lastDecision = $decision
+    lastNextInstruction = $next
+    lastHistoryId = $HistoryId
+  }
+  Write-AiRelayJson $updated $goalPath
+
+  $goalDir = Join-Path $PairDir 'goal'
+  New-Item -ItemType Directory -Force -Path $goalDir | Out-Null
+  $summary = @"
+# AI Relay Goal Summary
+
+- Pair: $PairId
+- Status: $status
+- Round: $round / $maxRounds
+- Decision: $decision
+- History: $HistoryId
+- Stop reason: $stopReason
+
+## Goal
+$($updated.goal)
+
+## Last Next Instruction
+$next
+"@
+  Set-Content -LiteralPath (Join-Path $goalDir 'goal-summary-latest.md') -Value $summary -Encoding utf8
+  Set-Content -LiteralPath (Join-Path $goalDir ("goal-summary-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".md")) -Value $summary -Encoding utf8
+  Add-AiRelayLog -PairDir $PairDir -Event 'goal-update' -Detail "status=$status round=$round decision=$decision historyId=$HistoryId"
+}
+
 function Invoke-AiRelayReport {
   param([string]$ProjectRoot, [string]$PairDir, [string]$PairId)
   $pair = Read-AiRelayPairJson $PairDir
@@ -202,6 +316,7 @@ $report
   }
   $summary.status = 'completed'
   Write-AiRelayJson $summary (Join-Path $historyDir 'summary.json')
+  Update-AiRelayGoalAfterReply -PairDir $PairDir -PairId $PairId -Reply $reply -HistoryId $historyId
   Add-AiRelayLog -PairDir $PairDir -Event 'codex-reply' -Detail "historyId: $historyId`nCodex reply written to codex-reply.md and archived."
   [void](Copy-AiRelayText $reply)
   Write-Host "History saved: $historyDir"

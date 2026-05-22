@@ -188,6 +188,8 @@ Claude Code 规则：
 
 - 每轮完成后必须写 `cc-report.md`。
 - 写完报告后立即执行 `ai-relay-cc.ps1 -Pair <pair> -Mode report`。
+- `Mode report` 会读取 `cc-report.md`，用 `pair.json` 里的明确 `codexSessionId` 调用 Codex，并把裁决写入 `codex-reply.md`。
+- `Mode report` 会自动更新 `goal.json`，并写入 `goal/goal-summary-latest.md`。
 - 如果 Codex 回复中有下一轮指令，Claude Code 直接继续执行，不需要用户确认。
 - 如果 Codex 接受/完成，goal loop 停止。
 - 达到 `MaxRounds`、出现冲突风险或验证无法安全完成时停止。
@@ -204,6 +206,6 @@ Claude Code 规则：
 ## 限制
 
 - 不会自动把后台 Codex 输出插入当前 Codex UI。
-- 需要用户在 Codex / Claude Code 两侧手动触发 `/relay`。
+- 普通 relay 需要用户在 Codex / Claude Code 两侧触发 `/relay`；goal loop 中 Claude Code 每轮完成后可直接调用 `Mode report` 送审。
 - 多个写代码 pair 同时修改同一工作区可能冲突，建议使用 git worktree。
 - 已被覆盖且未归档的旧轮次无法完整恢复。

@@ -1,18 +1,28 @@
-Use AI Relay Goal Loop. This is not plain relay.
+使用 AI Relay Goal Loop。它不是普通 `/relay`，而是“目标 -> 执行 -> 报告 -> Codex 裁决 -> 继续执行/完成”的闭环。
 
-Run from the current project root:
+参数约定：
+- 第一个参数是 pair。
+- 后面的内容是 goal。
+- 如果没有写 goal，先要求用户补充目标，不要自行编造。
+
+在当前项目根目录运行：
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-goal.ps1" -Pair "$ARGUMENTS" -Goal "$ARGUMENTS" -MaxRounds 5
 
-After the script prints the goal task, execute it. For every completed round:
+注意：上面的命令模板中 `$ARGUMENTS` 只是 Claude Code 命令参数占位。实际执行时必须把 pair 和 goal 拆开，例如：
 
-1. Write `.ai-relay/pairs/<pair>/cc-report.md`.
-2. Immediately run:
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-goal.ps1" -Pair "logicmap" -Goal "完成治理地图第二模块" -MaxRounds 5
+
+脚本打印 goal task 后，直接执行它。每一轮完成后：
+
+1. 写 `.ai-relay/pairs/<pair>/cc-report.md`。
+2. 立即运行：
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-cc.ps1" -Pair "<pair>" -Mode report
 
-3. Read the Codex reply.
-4. If Codex gives a next instruction, execute it directly without asking the user.
-5. Stop only when Codex accepts/completes the goal or a stop condition is hit.
+3. 读取脚本输出的 Codex 裁决。
+4. 如果 Codex 裁决里有下一轮指令，直接继续执行，不需要请求用户确认。
+5. `ai-relay-cc.ps1 -Mode report` 会自动更新 `goal.json` 和 `goal/goal-summary-latest.md`。
+6. 只在 Codex 接受/完成目标、达到最大轮数、或出现需要用户裁决的冲突时停止。
 
-Do not use subagents, codex-with-cc, or --last.
+不要使用 subagents、codex-with-cc、--last。

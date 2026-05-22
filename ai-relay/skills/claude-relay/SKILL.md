@@ -26,7 +26,7 @@
    - `AI_RELAY_STATUS=CC_INBOX_UNREAD`：读取并执行脚本输出的 Codex 新任务。
    - `AI_RELAY_STATUS=WAITING_FOR_CODEX`：报告已发出或应发出，等待 Codex 裁决。
    - `AI_RELAY_STATUS=IDLE`：没有新消息，也没有未读裁决；不要说“等待 Codex 裁决”。
-5. 如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
+5. 普通 relay 中，如果当前任务已完成或需要汇报，则先把本轮压缩报告写入 cc-report.md，再调用：
    ai-relay-cc.ps1 -Pair <pair> -Mode report
 6. 不要启动 Codex subagent。
 7. 不要启动 codex-with-cc。
@@ -76,7 +76,7 @@
 4. 每完成一轮任务后：
    - 写 `.ai-relay/pairs/<pair>/cc-report.md`
    - 立即调用 `ai-relay-cc.ps1 -Pair <pair> -Mode report`
-   - 读取 Codex 裁决
+   - 读取脚本输出的 Codex 裁决；该脚本会自动更新 `goal.json` 和 `goal/goal-summary-latest.md`
    - 如果 Codex 给出下一轮指令，直接继续执行，不需要用户确认
    - 如果 Codex 接受/完成，停止
 5. 不要自动 push，除非用户明确要求。
