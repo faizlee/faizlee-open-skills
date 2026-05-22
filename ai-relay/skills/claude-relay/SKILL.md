@@ -7,6 +7,8 @@
 当用户输入 /bind <pair>：
 1. 调用：
    ai-relay-bind-cc.ps1 -Pair <pair>
+   如果能获取当前 Claude Code session id，必须传入：
+   ai-relay-bind-cc.ps1 -Pair <pair> -CcSessionId <当前 Claude Code session id>
 2. 生成 bind-request.md。
 3. 复制 bind-request.md 到剪贴板。
 4. 告诉用户：如果 Codex 在同一项目工作区，可直接在 Codex 中执行 /bind <pair>；否则把剪贴板内容粘贴到对应 Codex 会话，并执行 /bind <pair>。

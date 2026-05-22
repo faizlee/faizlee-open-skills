@@ -207,6 +207,15 @@ function Handle-Action {
       return
     }
 
+    if ($path -eq '/action/cc-runner') {
+      $output = Invoke-Captured {
+        Push-Location $project
+        try { & "$PSScriptRoot\ai-workloop-cc-runner.ps1" -Pair $pair } finally { Pop-Location }
+      }
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Claude Code Runner 执行结果' "<pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
     if ($path -eq '/action/review') {
       $output = Invoke-Captured {
         Push-Location $project

@@ -32,6 +32,7 @@ function Get-BindValue([string]$Name) {
 }
 
 $task = Get-BindValue 'task'
+$ccSessionId = Get-BindValue 'ccSessionId'
 $ccSessionName = Get-BindValue 'ccSessionName'
 $ccInboxPath = Get-BindValue 'ccInboxPath'
 $ccReportPath = Get-BindValue 'ccReportPath'
@@ -42,6 +43,7 @@ $pairJson = [ordered]@{
   projectRoot = $projectRoot
   task = $task
   codexSessionId = $CodexSessionId
+  ccSessionId = $ccSessionId
   ccSessionName = $ccSessionName
   ccInboxPath = $ccInboxPath
   ccReportPath = $ccReportPath
@@ -69,6 +71,7 @@ pairId: $Pair
 projectRoot: $projectRoot
 task: $task
 codexSessionId: $CodexSessionId
+ccSessionId: $ccSessionId
 ccSessionName: $ccSessionName
 "@
 Set-Content -LiteralPath (Join-Path $pairDir 'context.md') -Value $context -Encoding utf8

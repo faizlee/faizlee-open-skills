@@ -4,6 +4,10 @@ Run this from the current project root:
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-bind-cc.ps1" -Pair "$ARGUMENTS"
 
+If the current Claude Code session id is available, include it:
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.ai-tools\bin\ai-relay-bind-cc.ps1" -Pair "<pair>" -CcSessionId "<current Claude Code session id>"
+
 This script writes .ai-relay/pairs/<pair>/bind-request.md and copies its content to the clipboard.
 
 Then tell the user:

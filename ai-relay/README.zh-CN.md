@@ -98,6 +98,7 @@ ai-workloop-project.ps1 -Mode add -ProjectRoot <path>
 ai-workloop-project.ps1 -Mode list
 ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open
 ai-workloop-dashboard-server.ps1 -Open
+ai-workloop-cc-runner.ps1 -Pair <pair>
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode pull
 ai-relay-cc.ps1 -Pair <pair> -Mode report
@@ -249,6 +250,7 @@ http://127.0.0.1:17877/
 支持的操作：
 
 - 执行 `/workloop <pair>`：可能调用 Codex，会在按钮上二次确认
+- 让 CC 执行：需要 pair.json 中有 `ccSessionId`，会调用 Claude CLI，可能修改文件并消耗额度
 - 系统打开 pair 目录
 - 生成并打开审计报告
 - 生成并打开复盘报告
@@ -259,6 +261,7 @@ http://127.0.0.1:17877/
 - 不注入 Claude Code / Codex 终端
 - 只允许操作启动控制器时传入或项目注册表中的项目
 - 会消耗 Codex 额度的动作需要用户点击确认
+- 会调用 Claude Code runner 的动作也需要用户点击确认
 
 ## Agent Workloop
 

@@ -208,6 +208,7 @@ function Get-WorkloopPairRow {
     Task = if ($pairJson) { [string]$pairJson.task } else { '' }
     Role = if ($pairJson) { [string]$pairJson.role } else { '' }
     CodexSessionId = if ($pairJson) { [string]$pairJson.codexSessionId } else { '' }
+    CcSessionId = if ($pairJson) { [string]$pairJson.ccSessionId } else { '' }
     Goal = if ($goalJson) { [string]$goalJson.goal } else { '' }
     GoalStatus = if ($goalJson) { [string]$goalJson.status } else { '' }
     Round = if ($goalJson -and $goalJson.round -ne $null) { [string]$goalJson.round } else { '' }
@@ -331,6 +332,11 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     $pairArg = Encode-WorkloopUrl $row.PairId
     $pairPathArg = Encode-WorkloopUrl $row.PairDir
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='执行 /workloop 可能调用 Codex 并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/workloop?projectRoot=$projectArg&pair=$pairArg")'>执行 /workloop</button>")
+    if ($row.CcSessionId) {
+      [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='让 Claude Code 执行会调用 Claude CLI，可能修改文件并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>让 CC 执行</button>")
+    } else {
+      [void]$cards.AppendLine("<button type='button' disabled title='pair.json 缺少 ccSessionId，需要重新 bind'>缺少 ccSessionId</button>")
+    }
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>系统打开 Pair</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")

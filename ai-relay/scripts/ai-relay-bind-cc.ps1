@@ -1,6 +1,7 @@
 ﻿param(
   [Parameter(Mandatory=$true)][string]$Pair,
   [string]$Task = '',
+  [string]$CcSessionId = '',
   [switch]$Force
 )
 
@@ -35,7 +36,8 @@ foreach ($name in $files.Keys) {
   }
 }
 
-$ccSessionName = if ($env:CLAUDE_SESSION_ID) { $env:CLAUDE_SESSION_ID } elseif ($env:WT_SESSION) { "WT:$($env:WT_SESSION)" } else { "$env:USERNAME@$env:COMPUTERNAME" }
+$detectedCcSessionId = if ($CcSessionId) { $CcSessionId } elseif ($env:CLAUDE_SESSION_ID) { $env:CLAUDE_SESSION_ID } elseif ($env:CLAUDE_CODE_SESSION_ID) { $env:CLAUDE_CODE_SESSION_ID } else { '' }
+$ccSessionName = if ($detectedCcSessionId) { $detectedCcSessionId } elseif ($env:WT_SESSION) { "WT:$($env:WT_SESSION)" } else { "$env:USERNAME@$env:COMPUTERNAME" }
 $createdAt = (Get-Date).ToString('o')
 $ccInboxPath = Join-Path $pairDir 'cc-inbox.md'
 $ccReportPath = Join-Path $pairDir 'cc-report.md'
@@ -46,6 +48,7 @@ $bindRequest = @"
 pairId: $Pair
 projectRoot: $projectRoot
 task: $Task
+ccSessionId: $detectedCcSessionId
 ccSessionName: $ccSessionName
 ccInboxPath: $ccInboxPath
 ccReportPath: $ccReportPath
@@ -60,6 +63,7 @@ ai-relay-bind-codex.ps1 -Pair $Pair -CodexSessionId "<当前Codex session id>"
 
 规则：
 - 一个 pair 绑定一个明确的 Codex session id。
+- 如果 ccSessionId 为空，面板不能安全直接恢复对应 Claude Code 会话；可重新执行 bind 并传入 -CcSessionId。
 - 不使用 --last。
 - 不使用 subagent。
 - 不启动 codex-with-cc。

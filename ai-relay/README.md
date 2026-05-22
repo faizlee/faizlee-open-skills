@@ -40,6 +40,7 @@ ai-workloop.ps1 <pair> [goal...]
 ai-workloop-project.ps1 -Mode add -ProjectRoot <path>
 ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open
 ai-workloop-dashboard-server.ps1 -Open
+ai-workloop-cc-runner.ps1 -Pair <pair>
 ai-relay-bind-codex.ps1 -Pair <pair> -CodexSessionId <id>
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode report
