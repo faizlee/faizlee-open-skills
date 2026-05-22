@@ -352,6 +352,83 @@ Rules:
   return $matches[0].Value
 }
 
+function New-WorkloopClaudeSessionId {
+  param(
+    [Parameter(Mandatory=$true)][string]$Project,
+    [Parameter(Mandatory=$true)][string]$Pair
+  )
+  $claude = Get-Command claude -ErrorAction SilentlyContinue
+  if (-not $claude) { throw "claude CLI not found in PATH." }
+  $prompt = @"
+Initialize Agent Workloop pair "$Pair" for this project.
+
+Rules:
+- You are the Claude Code execution thread for this pair.
+- Do not modify files.
+- Do not run tools unless needed.
+- Reply with one short sentence: Agent Workloop Claude Code session initialized.
+"@
+  $output = & $claude.Source --print --output-format json --permission-mode plan $prompt 2>&1 | Out-String
+  $exitCode = $LASTEXITCODE
+  if ($exitCode -ne 0) {
+    throw "创建 Claude Code session 失败。ExitCode=$exitCode`n$output"
+  }
+  try {
+    $json = $output | ConvertFrom-Json
+    if ($json.session_id) {
+      return [pscustomobject]@{
+        SessionId = [string]$json.session_id
+        Output = $output
+      }
+    }
+  } catch {
+  }
+  $matches = [regex]::Matches($output, '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
+  if ($matches.Count -lt 1) {
+    throw "创建 Claude Code session 成功但无法从输出解析 session id。原始输出：$output"
+  }
+  return [pscustomobject]@{
+    SessionId = $matches[0].Value
+    Output = $output
+  }
+}
+
+function Set-WorkloopCcSessionId {
+  param(
+    [Parameter(Mandatory=$true)][string]$Project,
+    [Parameter(Mandatory=$true)][string]$Pair,
+    [Parameter(Mandatory=$true)][string]$CcSessionId
+  )
+  $pairDir = Get-AiRelayPairDir $Project $Pair
+  if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
+  $pairJsonPath = Join-Path $pairDir 'pair.json'
+  if (Test-Path -LiteralPath $pairJsonPath) {
+    $pairJson = Get-Content -LiteralPath $pairJsonPath -Raw -Encoding utf8 | ConvertFrom-Json
+    $pairJson.ccSessionId = $CcSessionId
+    if (-not $pairJson.ccSessionName) {
+      $pairJson | Add-Member -NotePropertyName ccSessionName -NotePropertyValue $CcSessionId -Force
+    } else {
+      $pairJson.ccSessionName = $CcSessionId
+    }
+    $pairJson.boundAt = (Get-Date).ToString('o')
+    Write-AiRelayJson $pairJson $pairJsonPath
+  }
+  $bindPath = Join-Path $pairDir 'bind-request.md'
+  if (Test-Path -LiteralPath $bindPath) {
+    $bindText = Get-Content -LiteralPath $bindPath -Raw -Encoding utf8
+    if ($bindText -match '(?m)^ccSessionId:') {
+      $bindText = [regex]::Replace($bindText, '(?m)^ccSessionId:.*$', "ccSessionId: $CcSessionId")
+    } else {
+      $bindText = $bindText -replace '(?m)^ccSessionName:', "ccSessionId: $CcSessionId`nccSessionName:"
+    }
+    if ($bindText -match '(?m)^ccSessionName:') {
+      $bindText = [regex]::Replace($bindText, '(?m)^ccSessionName:.*$', "ccSessionName: $CcSessionId")
+    }
+    Set-Content -LiteralPath $bindPath -Value $bindText -Encoding utf8
+  }
+  Add-AiRelayLog -PairDir $pairDir -Event 'bind-cc-session' -Detail "Bound Claude Code session id $CcSessionId."
+}
+
 function Serve-Dashboard {
   param([System.Net.HttpListenerResponse]$Response, [string]$BaseUrl)
   $outDir = Join-Path $dashboardConfigDir 'server'
@@ -399,11 +476,21 @@ function Handle-Action {
       $pair = [string]$form['pair']
       $task = [string]$form['task']
       $codexSessionId = ([string]$form['codexSessionId']).Trim()
+      $ccSessionId = ([string]$form['ccSessionId']).Trim()
       Assert-AiRelayPairName $pair
       Write-Host ("[{0}] CREATE pair project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
+      $ccInitOutput = ''
+      if ([string]::IsNullOrWhiteSpace($ccSessionId)) {
+        $ccInit = New-WorkloopClaudeSessionId -Project $project -Pair $pair
+        $ccSessionId = $ccInit.SessionId
+        $ccInitOutput = $ccInit.Output
+      }
       $output = Invoke-Captured {
         Push-Location $project
-        try { & "$PSScriptRoot\ai-relay-bind-cc.ps1" -Pair $pair -Task $task } finally { Pop-Location }
+        try { & "$PSScriptRoot\ai-relay-bind-cc.ps1" -Pair $pair -Task $task -CcSessionId $ccSessionId } finally { Pop-Location }
+      }
+      if ($ccInitOutput) {
+        Set-Content -LiteralPath (Join-Path (Get-AiRelayPairDir $project $pair) 'cc-session-init.log') -Value $ccInitOutput -Encoding utf8
       }
       $bindOutput = ''
       if ([string]::IsNullOrWhiteSpace($codexSessionId)) {
@@ -417,7 +504,7 @@ function Handle-Action {
         try { & "$PSScriptRoot\ai-relay-bind-codex.ps1" -Pair $pair -CodexSessionId $codexSessionId -Force } finally { Pop-Location }
       }
       $bindPath = Join-Path (Get-AiRelayPairDir $project $pair) 'bind-request.md'
-      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建并绑定' "<p>已创建 Pair，并绑定 Codex session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><pre>$(Encode-Html ($output + "`n" + $bindOutput))</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 已创建并绑定' "<p>已创建 Pair，并绑定 Codex / Claude Code session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><p>Claude Code session id: <code>$(Encode-Html $ccSessionId)</code></p><pre>$(Encode-Html ($output + "`n" + $bindOutput))</pre><p>Bind request: <code>$(Encode-Html $bindPath)</code></p>")
       return
     }
 
@@ -456,6 +543,30 @@ function Handle-Action {
         try { & "$PSScriptRoot\ai-relay-bind-codex.ps1" -Pair $pair -CodexSessionId $codexSessionId -Force } finally { Pop-Location }
       }
       Write-HttpText -Response $Response -Text (New-ResultHtml 'Codex 绑定已更新' "<p>Pair 已绑定/重绑到 Codex session。</p><p>Codex session id: <code>$(Encode-Html $codexSessionId)</code></p><pre>$(Encode-Html $output)</pre>")
+      return
+    }
+
+    if ($path -eq '/action/rebind-cc') {
+      $form = Get-RequestFormMap $Request
+      $project = Assert-AllowedProject ([string]$form['projectRoot'])
+      $pair = [string]$form['pair']
+      $ccSessionId = ([string]$form['ccSessionId']).Trim()
+      Assert-AiRelayPairName $pair
+      $ccInitOutput = ''
+      if ([string]::IsNullOrWhiteSpace($ccSessionId)) {
+        $ccInit = New-WorkloopClaudeSessionId -Project $project -Pair $pair
+        $ccSessionId = $ccInit.SessionId
+        $ccInitOutput = $ccInit.Output
+      }
+      if ($ccSessionId -notmatch '^[0-9a-fA-F-]{20,}$') {
+        throw "Claude Code Session ID 格式看起来不正确：$ccSessionId"
+      }
+      Write-Host ("[{0}] REBIND cc project={1} pair={2} session={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $ccSessionId)
+      Set-WorkloopCcSessionId -Project $project -Pair $pair -CcSessionId $ccSessionId
+      if ($ccInitOutput) {
+        Set-Content -LiteralPath (Join-Path (Get-AiRelayPairDir $project $pair) 'cc-session-init.log') -Value $ccInitOutput -Encoding utf8
+      }
+      Write-HttpText -Response $Response -Text (New-ResultHtml 'Claude Code 绑定已更新' "<p>Pair 已绑定/重绑到 Claude Code session。</p><p>Claude Code session id: <code>$(Encode-Html $ccSessionId)</code></p>")
       return
     }
 
