@@ -97,6 +97,7 @@ ai-workloop.ps1 <pair> [goal...]
 ai-workloop-project.ps1 -Mode add -ProjectRoot <path>
 ai-workloop-project.ps1 -Mode list
 ai-workloop-dashboard.ps1 -ProjectRoot <path> -Open
+ai-workloop-dashboard-server.ps1 -Open
 ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode pull
 ai-relay-cc.ps1 -Pair <pair> -Mode report
@@ -230,6 +231,34 @@ $HOME\.ai-tools\workloop-dashboard\index.html
 - 打开最新报告和最新裁决文件
 
 面板按钮不会直接调用 Codex，也不会自动控制 Claude Code / Codex 终端。
+
+## Dashboard 控制模式
+
+如果需要在面板里直接操作，启动本地前台控制器：
+
+```powershell
+ai-workloop-dashboard-server.ps1 -Open
+```
+
+控制器只监听本机：
+
+```text
+http://127.0.0.1:17877/
+```
+
+支持的操作：
+
+- 执行 `/workloop <pair>`：可能调用 Codex，会在按钮上二次确认
+- 系统打开 pair 目录
+- 生成并打开审计报告
+- 生成并打开复盘报告
+
+边界：
+
+- 不是 daemon，关闭 PowerShell 窗口即停止
+- 不注入 Claude Code / Codex 终端
+- 只允许操作启动控制器时传入或项目注册表中的项目
+- 会消耗 Codex 额度的动作需要用户点击确认
 
 ## Agent Workloop
 

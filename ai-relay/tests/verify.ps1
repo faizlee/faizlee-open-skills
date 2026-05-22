@@ -9,6 +9,7 @@ $scripts = Join-Path $root 'scripts'
 $required = @(
   '_ai-relay-common.ps1',
   'ai-workloop-dashboard.ps1',
+  'ai-workloop-dashboard-server.ps1',
   'ai-workloop-project.ps1',
   'ai-workloop.ps1',
   'ai-relay-bind-cc.ps1',

@@ -1,6 +1,7 @@
 param(
   [string[]]$ProjectRoot,
   [string]$OutDir,
+  [string]$ControlBaseUrl,
   [switch]$Open
 )
 
@@ -26,6 +27,11 @@ function ConvertTo-WorkloopFileUri {
   } catch {
     return ''
   }
+}
+
+function Encode-WorkloopUrl {
+  param([string]$Text)
+  [System.Uri]::EscapeDataString([string]$Text)
 }
 
 function Read-WorkloopJson {
@@ -225,7 +231,8 @@ function Get-WorkloopPairRow {
   }
 }
 
-$dashboardConfigDir = Join-Path $HOME '.ai-tools\workloop-dashboard'
+$workloopHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
+$dashboardConfigDir = Join-Path $workloopHome '.ai-tools\workloop-dashboard'
 $projectConfigPath = Join-Path $dashboardConfigDir 'projects.json'
 
 function Read-RegisteredWorkloopProjects {
@@ -296,6 +303,10 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   $historyUri = ConvertTo-WorkloopFileUri $row.HistoryDir
   $reportUri = ConvertTo-WorkloopFileUri $row.ReportPath
   $replyUri = ConvertTo-WorkloopFileUri $row.ReplyPath
+  $controlPrefix = ''
+  if ($ControlBaseUrl) {
+    $controlPrefix = $ControlBaseUrl.TrimEnd('/')
+  }
   [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-')) health-$([regex]::Replace($row.HealthLevel, '[^A-Za-z0-9_-]', '-'))'>")
   [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.Status)</span></div>")
   [void]$cards.AppendLine("<dl class='meta'>")
@@ -315,6 +326,15 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
   if ($historyUri -and (Test-Path -LiteralPath $row.HistoryDir)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $historyUri)'>打开 History</a>") }
   if ($reportUri -and (Test-Path -LiteralPath $row.ReportPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $reportUri)'>打开报告</a>") }
   if ($replyUri -and (Test-Path -LiteralPath $row.ReplyPath)) { [void]$cards.AppendLine("<a href='$(Encode-WorkloopHtml $replyUri)'>打开裁决</a>") }
+  if ($controlPrefix) {
+    $projectArg = Encode-WorkloopUrl $row.ProjectRoot
+    $pairArg = Encode-WorkloopUrl $row.PairId
+    $pairPathArg = Encode-WorkloopUrl $row.PairDir
+    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='执行 /workloop 可能调用 Codex 并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/workloop?projectRoot=$projectArg&pair=$pairArg")'>执行 /workloop</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>系统打开 Pair</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")
+  }
   [void]$cards.AppendLine("</section>")
   [void]$cards.AppendLine("<section class='health-box'><h3>健康提示：$(Encode-WorkloopHtml $row.HealthLabel)</h3>")
   if ($row.HealthIssues.Count -gt 0) {
@@ -396,6 +416,7 @@ $html = @"
     .actions button, .actions a { appearance:none; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); padding:7px 10px; font:inherit; font-size:12px; text-decoration:none; cursor:pointer; }
     .actions button:hover, .actions a:hover { border-color:var(--accent); color:var(--accent); }
     .actions button.copied { background:#e7f2ed; border-color:var(--accent); color:var(--accent); }
+    .actions .danger-action { border-color:#d6b07b; background:#fff8ed; }
     .health-box { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; }
     .health-box h3 { margin:0 0 6px; font-size:13px; color:var(--muted); }
     .health-box ul { margin:0; padding-left:18px; font-size:13px; }
@@ -440,6 +461,33 @@ $html = @"
           }, 1200);
         } catch (error) {
           window.prompt('复制失败，请手动复制：', text);
+        }
+      });
+    });
+    document.querySelectorAll('button[data-post]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const message = button.getAttribute('data-confirm');
+        if (message && !window.confirm(message)) return;
+        const url = button.getAttribute('data-post');
+        const oldText = button.textContent;
+        button.textContent = '执行中...';
+        button.disabled = true;
+        try {
+          const response = await fetch(url, { method: 'POST' });
+          const text = await response.text();
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.open();
+            win.document.write(text);
+            win.document.close();
+          } else {
+            window.alert(text.replace(/<[^>]+>/g, ''));
+          }
+        } catch (error) {
+          window.alert('执行失败：' + error);
+        } finally {
+          button.textContent = oldText;
+          button.disabled = false;
         }
       });
     });
