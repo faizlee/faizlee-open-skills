@@ -139,6 +139,90 @@ function New-ResultHtml {
 "@
 }
 
+function New-CcRunnerStatusHtml {
+  param(
+    [string]$Project,
+    [string]$Pair,
+    [string]$BaseUrl
+  )
+  $pairDir = Get-AiRelayPairDir $Project $Pair
+  $statusPath = Join-Path $pairDir 'cc-runner-status.json'
+  $outputPath = Join-Path $pairDir 'cc-runner-output.md'
+  $reportPath = Join-Path $pairDir 'cc-report.md'
+  $status = $null
+  if (Test-Path -LiteralPath $statusPath) {
+    try {
+      $status = Get-Content -LiteralPath $statusPath -Raw -Encoding utf8 | ConvertFrom-Json
+    } catch {
+      $status = $null
+    }
+  }
+  $statusText = if ($status -and $status.status) { [string]$status.status } else { 'unknown' }
+  $message = if ($status -and $status.message) { [string]$status.message } else { '尚未写入状态文件。' }
+  $updatedAt = if ($status -and $status.updatedAt) { [string]$status.updatedAt } else { '' }
+  $processId = if ($status -and $status.processId) { [string]$status.processId } else { '' }
+  $output = ''
+  if (Test-Path -LiteralPath $outputPath) {
+    $output = Get-Content -LiteralPath $outputPath -Raw -Encoding utf8
+    if ($output.Length -gt 12000) {
+      $output = $output.Substring($output.Length - 12000)
+    }
+  }
+  $reportInfo = if (Test-Path -LiteralPath $reportPath) {
+    $item = Get-Item -LiteralPath $reportPath
+    "cc-report.md 更新时间：$($item.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))"
+  } else {
+    'cc-report.md 尚不存在。'
+  }
+  $projectArg = [System.Uri]::EscapeDataString($Project)
+  $pairArg = [System.Uri]::EscapeDataString($Pair)
+  $refreshUrl = "$($BaseUrl.TrimEnd('/'))/status/cc-runner?projectRoot=$projectArg&pair=$pairArg"
+  $refresh = if ($statusText -in @('queued','started','running','unknown')) {
+    "<meta http-equiv='refresh' content='2;url=$(Encode-Html $refreshUrl)'>"
+  } else {
+    ''
+  }
+  @"
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  $refresh
+  <title>CC 执行状态</title>
+  <style>
+    body { font-family: "Segoe UI", system-ui, sans-serif; margin: 24px; color: #1f2933; background: #f7f7f4; }
+    main { max-width: 980px; margin: 0 auto; background: #fff; border: 1px solid #d8ddd8; border-radius: 8px; padding: 18px; }
+    h1 { margin-top: 0; font-size: 22px; }
+    .badge { display:inline-block; border:1px solid #d8ddd8; border-radius:999px; padding:4px 10px; background:#f5f6f2; }
+    dl { display:grid; grid-template-columns:160px 1fr; gap:8px 12px; }
+    dt { color:#65717d; }
+    dd { margin:0; overflow-wrap:anywhere; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f6f2; border: 1px solid #e4e6df; border-radius: 6px; padding: 12px; }
+    a { color: #176b5d; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>CC 执行状态 <span class="badge">$(Encode-Html $statusText)</span></h1>
+    <dl>
+      <dt>Pair</dt><dd>$(Encode-Html $Pair)</dd>
+      <dt>项目</dt><dd>$(Encode-Html $Project)</dd>
+      <dt>状态说明</dt><dd>$(Encode-Html $message)</dd>
+      <dt>更新时间</dt><dd>$(Encode-Html $updatedAt)</dd>
+      <dt>进程 ID</dt><dd>$(Encode-Html $processId)</dd>
+      <dt>报告状态</dt><dd>$(Encode-Html $reportInfo)</dd>
+      <dt>输出文件</dt><dd>$(Encode-Html $outputPath)</dd>
+    </dl>
+    <h2>输出片段</h2>
+    <pre>$(Encode-Html $output)</pre>
+    <p><a href="$(Encode-Html $refreshUrl)">手动刷新</a> · <a href="/">返回 Dashboard</a></p>
+  </main>
+</body>
+</html>
+"@
+}
+
 function Invoke-Captured {
   param([scriptblock]$Script)
   $output = & $Script 2>&1 | Out-String
@@ -215,11 +299,37 @@ function Handle-Action {
 
     if ($path -eq '/action/cc-runner') {
       Write-Host ("[{0}] RUN cc-runner project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
-      $output = Invoke-Captured {
-        Push-Location $project
-        try { & "$PSScriptRoot\ai-workloop-cc-runner.ps1" -Pair $pair } finally { Pop-Location }
-      }
-      Write-HttpText -Response $Response -Text (New-ResultHtml 'Claude Code Runner 执行结果' "<pre>$(Encode-Html $output)</pre>")
+      $pairDir = Get-AiRelayPairDir $project $pair
+      if (-not (Test-Path -LiteralPath $pairDir)) { throw "Pair 不存在：$pairDir" }
+      $statusPath = Join-Path $pairDir 'cc-runner-status.json'
+      Write-AiRelayJson ([ordered]@{
+        pairId = $pair
+        projectRoot = $project
+        status = 'queued'
+        message = '已收到面板请求，正在启动 Claude Code runner。'
+        exitCode = 0
+        outputPath = Join-Path $pairDir 'cc-runner-output.md'
+        updatedAt = (Get-Date).ToString('o')
+        processId = ''
+      }) $statusPath
+      $powershell = Get-Command powershell -ErrorAction SilentlyContinue
+      if (-not $powershell) { throw "powershell.exe not found." }
+      $psi = [System.Diagnostics.ProcessStartInfo]::new()
+      $psi.FileName = $powershell.Source
+      [void]$psi.ArgumentList.Add('-NoProfile')
+      [void]$psi.ArgumentList.Add('-ExecutionPolicy')
+      [void]$psi.ArgumentList.Add('Bypass')
+      [void]$psi.ArgumentList.Add('-File')
+      [void]$psi.ArgumentList.Add((Join-Path $PSScriptRoot 'ai-workloop-cc-runner.ps1'))
+      [void]$psi.ArgumentList.Add('-Pair')
+      [void]$psi.ArgumentList.Add($pair)
+      $psi.WorkingDirectory = $project
+      $psi.UseShellExecute = $false
+      $psi.CreateNoWindow = $true
+      $process = [System.Diagnostics.Process]::Start($psi)
+      Write-Host ("[{0}] cc-runner started pid={1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $process.Id)
+      $html = New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix
+      Write-HttpText -Response $Response -Text $html
       return
     }
 
@@ -238,6 +348,30 @@ function Handle-Action {
   } catch {
     Write-Host ("[{0}] ACTION failed path={1}: {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $path, $_.Exception.Message)
     Write-HttpText -Response $Response -Text (New-ResultHtml '操作失败' "<pre>$(Encode-Html $_.Exception.Message)</pre>") -StatusCode 500
+  }
+}
+
+function Handle-Status {
+  param(
+    [System.Net.HttpListenerRequest]$Request,
+    [System.Net.HttpListenerResponse]$Response
+  )
+  $query = Get-QueryMap $Request.Url
+  $path = [string]$Request.Url.AbsolutePath
+  if ($path.Length -gt 1) {
+    $path = $path.TrimEnd('/')
+  }
+  try {
+    $project = Assert-AllowedProject (Decode-Query $query['projectRoot'])
+    $pair = Decode-Query $query['pair']
+    Assert-AiRelayPairName $pair
+    if ($path -eq '/status/cc-runner') {
+      Write-HttpText -Response $Response -Text (New-CcRunnerStatusHtml -Project $project -Pair $pair -BaseUrl $prefix)
+      return
+    }
+    Write-HttpText -Response $Response -Text (New-ResultHtml '未知状态页' "<pre>$(Encode-Html $path)</pre>") -StatusCode 404
+  } catch {
+    Write-HttpText -Response $Response -Text (New-ResultHtml '状态读取失败' "<pre>$(Encode-Html $_.Exception.Message)</pre>") -StatusCode 500
   }
 }
 
@@ -266,6 +400,8 @@ try {
     $response = $context.Response
     if ($request.HttpMethod -eq 'GET' -and $request.Url.AbsolutePath -eq '/') {
       Serve-Dashboard -Response $response -BaseUrl $prefix
+    } elseif ($request.HttpMethod -eq 'GET' -and $request.Url.AbsolutePath.StartsWith('/status/')) {
+      Handle-Status -Request $request -Response $response
     } elseif ($request.HttpMethod -eq 'POST' -and $request.Url.AbsolutePath.StartsWith('/action/')) {
       Handle-Action -Request $request -Response $response
     } else {
