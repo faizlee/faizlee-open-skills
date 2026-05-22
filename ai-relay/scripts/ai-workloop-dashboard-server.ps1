@@ -1189,9 +1189,11 @@ Read-Host '按 Enter 关闭窗口'
       $output = Invoke-Captured {
         Push-Location $project
         try {
-          $summaryArgs = @('-Pair', $pair, '-Analyzer', $analyzer, '-Format', 'both', '-Open')
-          if ($useCache -and -not $force) { $summaryArgs += @('-UseCache', '-CacheOnly') }
-          & "$PSScriptRoot\ai-workloop-summary.ps1" @summaryArgs
+          if ($useCache -and -not $force) {
+            & "$PSScriptRoot\ai-workloop-summary.ps1" -Pair $pair -Analyzer $analyzer -Format both -Open -UseCache -CacheOnly
+          } else {
+            & "$PSScriptRoot\ai-workloop-summary.ps1" -Pair $pair -Analyzer $analyzer -Format both -Open
+          }
         } finally { Pop-Location }
       }
       Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 总结生成结果' "<pre>$(Encode-Html $output)</pre>")
