@@ -139,6 +139,7 @@ $args = @(
   '--resume', $ccSessionId,
   '--permission-mode', $PermissionMode,
   '--max-budget-usd', ([string]$MaxBudgetUsd),
+  '--verbose',
   '--output-format', 'stream-json',
   '--include-partial-messages',
   $prompt
@@ -152,7 +153,7 @@ Write-Output "AI_WORKLOOP_CC_RUNNER_OUTPUT=$outPath"
 if ($DryRun) {
   Write-CcRunnerStatus -Status 'dry-run' -Message 'Dry run completed.'
   Write-Output "AI_WORKLOOP_CC_RUNNER_DRYRUN=1"
-  Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --output-format stream-json --include-partial-messages <prompt>"
+  Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --verbose --output-format stream-json --include-partial-messages <prompt>"
   exit 0
 }
 
@@ -167,7 +168,7 @@ pair=$pairId
 source=$sourcePath
 claudeSessionId=$ccSessionId
 
-Claude CLI is running with --output-format stream-json and --include-partial-messages.
+Claude CLI is running with --verbose --output-format stream-json and --include-partial-messages.
 Raw stream is written to:
 $streamPath
 

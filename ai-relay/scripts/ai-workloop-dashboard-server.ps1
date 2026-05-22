@@ -213,6 +213,15 @@ function New-CcRunnerStatusHtml {
   } else {
     ''
   }
+  $stopForm = if ($statusText -in @('queued','started','running') -and $processAlive) {
+    @"
+    <form method="post" action="$(Encode-Html $stopUrl)" onsubmit="return confirm('确认停止这个 CC runner 进程？');">
+      <button type="submit">停止 CC 执行</button>
+    </form>
+"@
+  } else {
+    ''
+  }
   @"
 <!doctype html>
 <html lang="zh-CN">
@@ -248,9 +257,7 @@ function New-CcRunnerStatusHtml {
       <dt>原始流</dt><dd>$(Encode-Html $streamPath)</dd>
       <dt>stderr 日志</dt><dd>$(Encode-Html $runnerStderrPath)</dd>
     </dl>
-    <form method="post" action="$(Encode-Html $stopUrl)" onsubmit="return confirm('确认停止这个 CC runner 进程？');">
-      <button type="submit">停止 CC 执行</button>
-    </form>
+    $stopForm
     <h2>输出片段</h2>
     <pre>$(Encode-Html $output)</pre>
     <h2>stderr 片段</h2>
