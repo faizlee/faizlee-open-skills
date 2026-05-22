@@ -386,7 +386,6 @@ function Handle-Action {
       }) $statusPath
       $powershell = Get-Command powershell -ErrorAction SilentlyContinue
       if (-not $powershell) { throw "powershell.exe not found." }
-      $runnerPath = Join-Path $PSScriptRoot 'ai-workloop-cc-runner.ps1'
       $runnerOutputPath = Join-Path $pairDir 'cc-runner-output.md'
       $runnerStreamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
       $terminalCommand = @"
@@ -399,47 +398,86 @@ Set-Location -LiteralPath '$($project.Replace("'", "''"))'
 Write-Host 'Agent Workloop CC runner'
 Write-Host 'Pair: $($pair.Replace("'", "''"))'
 Write-Host 'Project: $($project.Replace("'", "''"))'
-Write-Host 'Live output: $($runnerOutputPath.Replace("'", "''"))'
-Write-Host 'Raw stream: $($runnerStreamPath.Replace("'", "''"))'
+Write-Host 'Mode: Claude Code native terminal'
 Write-Host ''
-if (Test-Path -LiteralPath '$($runnerOutputPath.Replace("'", "''"))') {
-  Clear-Content -LiteralPath '$($runnerOutputPath.Replace("'", "''"))' -ErrorAction SilentlyContinue
+`$pairDir = '$($pairDir.Replace("'", "''"))'
+`$pairJsonPath = Join-Path `$pairDir 'pair.json'
+`$sourcePath = Join-Path `$pairDir 'cc-inbox.md'
+`$statusPath = Join-Path `$pairDir 'cc-runner-status.json'
+`$pairJson = Get-Content -LiteralPath `$pairJsonPath -Raw -Encoding utf8 | ConvertFrom-Json
+`$ccSessionId = [string]`$pairJson.ccSessionId
+`$sourceText = Get-Content -LiteralPath `$sourcePath -Raw -Encoding utf8
+if ([string]::IsNullOrWhiteSpace(`$ccSessionId)) {
+  Write-Host 'pair.json 缺少 ccSessionId，请先 rebind。' -ForegroundColor Red
+  Read-Host '按 Enter 关闭窗口'
+  exit 1
+}
+if ([string]::IsNullOrWhiteSpace(`$sourceText)) {
+  Write-Host 'cc-inbox.md 为空，没有可执行任务。' -ForegroundColor Yellow
+  Read-Host '按 Enter 关闭窗口'
+  exit 1
+}
+`$status = [ordered]@{
+  pairId = '$($pair.Replace("'", "''"))'
+  projectRoot = '$($project.Replace("'", "''"))'
+  status = 'running'
+  message = '已打开 Claude Code 原生终端执行任务。'
+  exitCode = 0
+  outputPath = '$($runnerOutputPath.Replace("'", "''"))'
+  streamPath = '$($runnerStreamPath.Replace("'", "''"))'
+  stdoutPath = '$($stdoutPath.Replace("'", "''"))'
+  stderrPath = '$($stderrPath.Replace("'", "''"))'
+  updatedAt = (Get-Date).ToString('o')
+  processId = `$PID
+}
+`$status | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath `$statusPath -Encoding utf8
+`$prompt = @(
+  'You are the Claude Code execution agent for Agent Workloop pair "$($pair.Replace("'", "''"))".',
+  '',
+  'Project root:',
+  '$($project.Replace("'", "''"))',
+  '',
+  'Read the task below, execute only what is requested, then write a compressed report to:',
+  '.ai-relay/pairs/$($pair.Replace("'", "''"))/cc-report.md',
+  '',
+  'Report requirements:',
+  '- Use the existing CC Report format.',
+  '- Include changed files and verification commands.',
+  '- Do not paste long logs or full diffs.',
+  '- If execution is unsafe or unclear, write that in the report instead of guessing.',
+  '- Do not auto-push unless the task explicitly asks.',
+  '',
+  'Task:',
+  `$sourceText
+) -join [Environment]::NewLine
+`$claude = Get-Command claude -ErrorAction SilentlyContinue
+if (-not `$claude) {
+  Write-Host 'claude CLI not found in PATH.' -ForegroundColor Red
+  Read-Host '按 Enter 关闭窗口'
+  exit 1
+}
+Write-Host "Resuming Claude Code session: `$ccSessionId"
+Write-Host '下面是 Claude Code 原生终端输出。'
+Write-Host ''
+& `$claude.Source --resume `$ccSessionId --permission-mode default `$prompt
+`$exitCode = `$LASTEXITCODE
+try {
+  `$status.status = if (`$exitCode -eq 0) { 'completed' } else { 'failed' }
+  `$status.exitCode = `$exitCode
+  `$status.message = "Claude Code 原生终端执行结束。ExitCode=`$exitCode"
+  `$status.updatedAt = (Get-Date).ToString('o')
+  `$status | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath `$statusPath -Encoding utf8
+} catch {
+  Write-Host "写入状态失败：`$(`$_.Exception.Message)" -ForegroundColor Yellow
+}
+if (`$exitCode -ne 0) {
+  Write-Host ''
+  Write-Host "Claude Code exited with code `$exitCode" -ForegroundColor Red
 } else {
-  New-Item -ItemType File -Path '$($runnerOutputPath.Replace("'", "''"))' -Force | Out-Null
-}
-`$runner = Start-Process -FilePath '$($powershell.Source.Replace("'", "''"))' -ArgumentList @(
-  '-NoProfile',
-  '-ExecutionPolicy',
-  'Bypass',
-  '-File',
-  '$($runnerPath.Replace("'", "''"))',
-  '-Pair',
-  '$($pair.Replace("'", "''"))'
-) -WorkingDirectory '$($project.Replace("'", "''"))' -WindowStyle Hidden -RedirectStandardOutput '$($stdoutPath.Replace("'", "''"))' -RedirectStandardError '$($stderrPath.Replace("'", "''"))' -PassThru
-Write-Host "Runner process: `$(`$runner.Id)"
-Write-Host ''
-Write-Host '--- Claude Code live output ---'
-`$position = 0
-while (-not `$runner.HasExited) {
-  if (Test-Path -LiteralPath '$($runnerOutputPath.Replace("'", "''"))') {
-    `$text = Get-Content -LiteralPath '$($runnerOutputPath.Replace("'", "''"))' -Raw -Encoding utf8 -ErrorAction SilentlyContinue
-    if (`$null -ne `$text -and `$text.Length -gt `$position) {
-      Write-Host -NoNewline `$text.Substring(`$position)
-      `$position = `$text.Length
-    }
+  Write-Host ''
+  Write-Host 'Claude Code 执行结束。' -ForegroundColor Green
   }
-  Start-Sleep -Milliseconds 700
-  `$runner.Refresh()
-}
-if (Test-Path -LiteralPath '$($runnerOutputPath.Replace("'", "''"))') {
-  `$text = Get-Content -LiteralPath '$($runnerOutputPath.Replace("'", "''"))' -Raw -Encoding utf8 -ErrorAction SilentlyContinue
-  if (`$null -ne `$text -and `$text.Length -gt `$position) {
-    Write-Host -NoNewline `$text.Substring(`$position)
-  }
-}
-Write-Host ''
-Write-Host "--- CC runner finished. ExitCode=`$(`$runner.ExitCode) ---"
-Write-Host '窗口只用于观看输出；控制仍然通过面板或原 CC/Codex 会话完成。'
+Write-Host '窗口用于观看 Claude Code 原生输出；控制仍然可以通过面板或原 CC/Codex 会话完成。'
 Read-Host '按 Enter 关闭窗口'
 "@
       $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($terminalCommand))
@@ -455,7 +493,7 @@ Read-Host '按 Enter 关闭窗口'
         pairId = $pair
         projectRoot = $project
         status = 'started'
-        message = '已启动可见 Claude Code runner 终端，等待 runner 写入运行状态。'
+        message = '已启动 Claude Code 原生终端，等待终端写入运行状态。'
         exitCode = 0
         outputPath = Join-Path $pairDir 'cc-runner-output.md'
         streamPath = Join-Path $pairDir 'cc-runner-stream.jsonl'
