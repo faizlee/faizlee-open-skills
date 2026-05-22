@@ -175,7 +175,11 @@ function Handle-Action {
     [System.Net.HttpListenerResponse]$Response
   )
   $query = Get-QueryMap $Request.Url
-  $path = $Request.Url.AbsolutePath
+  $path = [string]$Request.Url.AbsolutePath
+  if ($path.Length -gt 1) {
+    $path = $path.TrimEnd('/')
+  }
+  Write-Host ("[{0}] ACTION {1} {2}{3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Request.HttpMethod, $path, $Request.Url.Query)
   try {
     if ($path -eq '/action/open') {
       $target = Decode-Query $query['path']
@@ -190,6 +194,7 @@ function Handle-Action {
     Assert-AiRelayPairName $pair
 
     if ($path -eq '/action/workloop') {
+      Write-Host ("[{0}] RUN workloop project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
       $output = Invoke-Captured {
         Push-Location $project
         try { & "$PSScriptRoot\ai-workloop.ps1" $pair } finally { Pop-Location }
@@ -199,6 +204,7 @@ function Handle-Action {
     }
 
     if ($path -eq '/action/export') {
+      Write-Host ("[{0}] RUN export project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
       $output = Invoke-Captured {
         Push-Location $project
         try { & "$PSScriptRoot\ai-relay-export.ps1" -Pair $pair -Format both -Open } finally { Pop-Location }
@@ -208,6 +214,7 @@ function Handle-Action {
     }
 
     if ($path -eq '/action/cc-runner') {
+      Write-Host ("[{0}] RUN cc-runner project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
       $output = Invoke-Captured {
         Push-Location $project
         try { & "$PSScriptRoot\ai-workloop-cc-runner.ps1" -Pair $pair } finally { Pop-Location }
@@ -217,6 +224,7 @@ function Handle-Action {
     }
 
     if ($path -eq '/action/review') {
+      Write-Host ("[{0}] RUN review project={1} pair={2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair)
       $output = Invoke-Captured {
         Push-Location $project
         try { & "$PSScriptRoot\ai-relay-review.ps1" -Pair $pair -Format both -Open } finally { Pop-Location }
@@ -225,8 +233,10 @@ function Handle-Action {
       return
     }
 
+    Write-Host ("[{0}] UNKNOWN action path={1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $path)
     Write-HttpText -Response $Response -Text (New-ResultHtml '未知操作' "<pre>$(Encode-Html $path)</pre>") -StatusCode 404
   } catch {
+    Write-Host ("[{0}] ACTION failed path={1}: {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $path, $_.Exception.Message)
     Write-HttpText -Response $Response -Text (New-ResultHtml '操作失败' "<pre>$(Encode-Html $_.Exception.Message)</pre>") -StatusCode 500
   }
 }
@@ -259,6 +269,7 @@ try {
     } elseif ($request.HttpMethod -eq 'POST' -and $request.Url.AbsolutePath.StartsWith('/action/')) {
       Handle-Action -Request $request -Response $response
     } else {
+      Write-Host ("[{0}] NOT_FOUND {1} {2}{3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $request.HttpMethod, $request.Url.AbsolutePath, $request.Url.Query)
       Write-HttpText -Response $response -Text (New-ResultHtml 'Not Found' '<pre>Not Found</pre>') -StatusCode 404
     }
   }
