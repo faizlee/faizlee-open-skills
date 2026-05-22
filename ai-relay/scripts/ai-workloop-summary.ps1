@@ -4,6 +4,8 @@
   [ValidateSet('cc','codex','local')][string]$Analyzer = 'cc',
   [ValidateSet('md','html','both')][string]$Format = 'both',
   [string]$OutDir,
+  [switch]$UseCache,
+  [switch]$CacheOnly,
   [switch]$Open
 )
 
@@ -92,6 +94,37 @@ function Get-OverlapCount {
     if ($lower.Contains($item)) { $count++ }
   }
   return $count
+}
+
+function Get-SummarySourceHash {
+  param([string]$PairDir)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $builder = [System.Text.StringBuilder]::new()
+    foreach ($name in @('pair.json','goal.json','cc-inbox.md','cc-report.md','codex-reply.md','relay-log.md')) {
+      $path = Join-Path $PairDir $name
+      if (Test-Path -LiteralPath $path) {
+        $item = Get-Item -LiteralPath $path
+        [void]$builder.AppendLine("$name|$($item.LastWriteTimeUtc.Ticks)|$($item.Length)")
+      } else {
+        [void]$builder.AppendLine("$name|missing")
+      }
+    }
+    $historyRoot = Join-Path $PairDir 'history'
+    if (Test-Path -LiteralPath $historyRoot) {
+      Get-ChildItem -LiteralPath $historyRoot -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -in @('summary.json','cc-inbox.md','cc-report.md','codex-prompt.md','codex-reply.md') } |
+        Sort-Object FullName |
+        ForEach-Object {
+          [void]$builder.AppendLine("$($_.FullName.Substring($PairDir.Length))|$($_.LastWriteTimeUtc.Ticks)|$($_.Length)")
+        }
+    }
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($builder.ToString())
+    $hashBytes = $sha.ComputeHash($bytes)
+    return ([BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+  } finally {
+    $sha.Dispose()
+  }
 }
 
 function Invoke-SummaryAnalyzer {
@@ -188,7 +221,39 @@ if ($Last -gt 0 -and $roundDirs.Count -gt $Last) {
 if (-not $OutDir) {
   $OutDir = Join-Path $pairDir 'summary'
 }
+$summaryRoot = $OutDir
+$OutDir = Join-Path $summaryRoot $Analyzer
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+$sourceHash = Get-SummarySourceHash -PairDir $pairDir
+$latestMdPath = Join-Path $OutDir 'workloop-summary-latest.md'
+$latestHtmlPath = Join-Path $OutDir 'workloop-summary-latest.html'
+$metaPath = Join-Path $OutDir 'workloop-summary-meta.json'
+
+if ($UseCache -and (Test-Path -LiteralPath $latestHtmlPath) -and (Test-Path -LiteralPath $metaPath)) {
+  try {
+    $meta = Get-Content -LiteralPath $metaPath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ($meta.analyzer -eq $Analyzer -and $meta.sourceHash -eq $sourceHash) {
+      Write-Host "Pair summary cache hit."
+      Write-Host "Analyzer: $Analyzer"
+      Write-Host "HTML: $latestHtmlPath"
+      Write-Host "Markdown: $latestMdPath"
+      if ($Open) {
+        if ($Format -eq 'md') { Invoke-Item -LiteralPath $latestMdPath } else { Invoke-Item -LiteralPath $latestHtmlPath }
+      }
+      return
+    }
+  } catch {
+    Write-Warning "Summary cache metadata is invalid; regenerating. $($_.Exception.Message)"
+  }
+}
+
+if ($CacheOnly) {
+  Write-Host "Pair summary cache miss."
+  Write-Host "Analyzer: $Analyzer"
+  Write-Host "Expected HTML: $latestHtmlPath"
+  Write-Host "原因：没有生成过这个分析方式的总结，或 pair 数据已经变化。请点击重新生成总结。"
+  return
+}
 
 $goalText = ''
 if ($goal -and $goal.goal) { $goalText = [string]$goal.goal }
@@ -302,8 +367,6 @@ if ($driftWarnings.Count -gt 0) {
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $mdPath = Join-Path $OutDir "workloop-summary-$pairId-$stamp.md"
 $htmlPath = Join-Path $OutDir "workloop-summary-$pairId-$stamp.html"
-$latestMdPath = Join-Path $OutDir 'workloop-summary-latest.md'
-$latestHtmlPath = Join-Path $OutDir 'workloop-summary-latest.html'
 
 $md = [System.Text.StringBuilder]::new()
 [void]$md.AppendLine("# Pair 会话总结")
@@ -507,7 +570,20 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
   [System.IO.File]::WriteAllText($latestHtmlPath, $html, $encoding)
 }
 
+Write-AiRelayJson ([ordered]@{
+  pairId = $pairId
+  projectRoot = $projectRoot
+  analyzer = $Analyzer
+  sourceHash = $sourceHash
+  generatedAt = (Get-Date).ToString('o')
+  markdown = $mdPath
+  html = $htmlPath
+  latestMarkdown = $latestMdPath
+  latestHtml = $latestHtmlPath
+}) $metaPath
+
 Write-Host "Pair summary generated:"
+Write-Host "Analyzer: $Analyzer"
 if ($Format -eq 'md' -or $Format -eq 'both') {
   Write-Host "Markdown: $mdPath"
   Write-Host "Latest Markdown: $latestMdPath"

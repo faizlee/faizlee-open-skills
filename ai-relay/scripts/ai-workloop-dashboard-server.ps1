@@ -1143,8 +1143,10 @@ Read-Host '按 Enter 关闭窗口'
       $analyzer = [string]$query['analyzer']
       if ([string]::IsNullOrWhiteSpace($analyzer)) { $analyzer = 'cc' }
       if ($analyzer -notin @('cc','codex','local')) { throw "不支持的总结分析方式：$analyzer" }
-      Write-Host ("[{0}] RUN summary project={1} pair={2} analyzer={3}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $analyzer)
-      if ($analyzer -eq 'cc') {
+      $useCache = [string]$query['cache'] -eq '1'
+      $force = [string]$query['force'] -eq '1'
+      Write-Host ("[{0}] RUN summary project={1} pair={2} analyzer={3} cache={4} force={5}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $project, $pair, $analyzer, $useCache, $force)
+      if ($analyzer -eq 'cc' -and -not $useCache) {
         $powershell = Get-Command powershell -ErrorAction SilentlyContinue
         if (-not $powershell) { throw "powershell.exe not found." }
         $summaryScript = Join-Path $PSScriptRoot 'ai-workloop-summary.ps1'
@@ -1186,7 +1188,11 @@ Read-Host '按 Enter 关闭窗口'
       }
       $output = Invoke-Captured {
         Push-Location $project
-        try { & "$PSScriptRoot\ai-workloop-summary.ps1" -Pair $pair -Analyzer $analyzer -Format both -Open } finally { Pop-Location }
+        try {
+          $summaryArgs = @('-Pair', $pair, '-Analyzer', $analyzer, '-Format', 'both', '-Open')
+          if ($useCache -and -not $force) { $summaryArgs += @('-UseCache', '-CacheOnly') }
+          & "$PSScriptRoot\ai-workloop-summary.ps1" @summaryArgs
+        } finally { Pop-Location }
       }
       Write-HttpText -Response $Response -Text (New-ResultHtml 'Pair 总结生成结果' "<pre>$(Encode-Html $output)</pre>")
       return

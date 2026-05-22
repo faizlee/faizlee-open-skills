@@ -358,8 +358,7 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>打开 Pair</button>")
     if (Test-Path -LiteralPath $row.ReportPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$reportPathArg")'>打开报告</button>") }
     if (Test-Path -LiteralPath $row.ReplyPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$replyPathArg")'>打开裁决</button>") }
-    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='将调用 Claude Code 分析当前项目和 pair 数据，可能消耗 Claude Code 额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc")'>生成总结（CC）</button>")
-    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='将调用 Codex read-only 分析当前项目和 pair 数据，可能消耗 Codex 额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=codex")'>生成总结（Codex）</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc&cache=1")'>查看总结</button>")
     [void]$cards.AppendLine("<button type='button' data-plan-task='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-goal='$(Encode-WorkloopHtml $row.Goal)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/plan-task?projectRoot=$projectArg&pair=$pairArg")'>让 Codex 规划任务</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/codex-terminal?projectRoot=$projectArg&pair=$pairArg")'>打开 Codex 终端</button>")
     [void]$cards.AppendLine("<button type='button' data-rebind-codex='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-codex?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 Codex</button>")
@@ -373,7 +372,9 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     if (Test-Path -LiteralPath $row.HistoryDir) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$historyPathArg")'>打开 History</button>") }
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/export?projectRoot=$projectArg&pair=$pairArg")'>生成审计</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/review?projectRoot=$projectArg&pair=$pairArg")'>生成复盘</button>")
-    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=local")'>生成本地摘要</button>")
+    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='将调用 Claude Code 重新分析当前项目和 pair 数据，可能消耗 Claude Code 额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc&force=1")'>重新生成总结（CC）</button>")
+    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='将调用 Codex read-only 重新分析当前项目和 pair 数据，可能消耗 Codex 额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=codex&force=1")'>重新生成总结（Codex）</button>")
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=local&force=1")'>重新生成本地摘要</button>")
     [void]$cards.AppendLine("</div></details>")
   }
   [void]$cards.AppendLine("</section>")
