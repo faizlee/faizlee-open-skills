@@ -527,8 +527,11 @@ function Handle-Action {
 
     if ($path -eq '/action/rebind-codex') {
       $form = Get-RequestFormMap $Request
-      $project = Assert-AllowedProject ([string]$form['projectRoot'])
-      $pair = [string]$form['pair']
+      $projectText = if ($form.ContainsKey('projectRoot') -and -not [string]::IsNullOrWhiteSpace([string]$form['projectRoot'])) { [string]$form['projectRoot'] } else { Decode-Query $query['projectRoot'] }
+      $pair = if ($form.ContainsKey('pair') -and -not [string]::IsNullOrWhiteSpace([string]$form['pair'])) { [string]$form['pair'] } else { Decode-Query $query['pair'] }
+      if ([string]::IsNullOrWhiteSpace($projectText)) { throw "缺少 projectRoot，无法绑定 Codex session。请刷新面板后重试。" }
+      if ([string]::IsNullOrWhiteSpace($pair)) { throw "缺少 pair，无法绑定 Codex session。请刷新面板后重试。" }
+      $project = Assert-AllowedProject $projectText
       $codexSessionId = ([string]$form['codexSessionId']).Trim()
       Assert-AiRelayPairName $pair
       if ([string]::IsNullOrWhiteSpace($codexSessionId)) {
@@ -548,8 +551,11 @@ function Handle-Action {
 
     if ($path -eq '/action/rebind-cc') {
       $form = Get-RequestFormMap $Request
-      $project = Assert-AllowedProject ([string]$form['projectRoot'])
-      $pair = [string]$form['pair']
+      $projectText = if ($form.ContainsKey('projectRoot') -and -not [string]::IsNullOrWhiteSpace([string]$form['projectRoot'])) { [string]$form['projectRoot'] } else { Decode-Query $query['projectRoot'] }
+      $pair = if ($form.ContainsKey('pair') -and -not [string]::IsNullOrWhiteSpace([string]$form['pair'])) { [string]$form['pair'] } else { Decode-Query $query['pair'] }
+      if ([string]::IsNullOrWhiteSpace($projectText)) { throw "缺少 projectRoot，无法绑定 Claude Code session。请刷新面板后重试。" }
+      if ([string]::IsNullOrWhiteSpace($pair)) { throw "缺少 pair，无法绑定 Claude Code session。请刷新面板后重试。" }
+      $project = Assert-AllowedProject $projectText
       $ccSessionId = ([string]$form['ccSessionId']).Trim()
       Assert-AiRelayPairName $pair
       $ccInitOutput = ''
