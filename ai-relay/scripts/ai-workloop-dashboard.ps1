@@ -152,6 +152,145 @@ function Get-WorkloopHealth {
   }
 }
 
+function Get-WorkloopSummaryInfo {
+  param([string]$PairDir, [datetime]$LastSourceTime)
+  $summaryDir = Join-Path (Join-Path $PairDir 'summary') 'cc'
+  $summaryPath = Join-Path $summaryDir 'workloop-summary-latest.md'
+  $htmlPath = Join-Path $summaryDir 'workloop-summary-latest.html'
+  if (-not (Test-Path -LiteralPath $summaryPath)) {
+    return [pscustomobject]@{
+      State = 'missing'
+      Label = '未生成'
+      Path = $summaryPath
+      HtmlPath = $htmlPath
+      Excerpt = ''
+    }
+  }
+  $item = Get-Item -LiteralPath $summaryPath
+  $state = 'fresh'
+  $label = '可用'
+  if ($LastSourceTime -and $item.LastWriteTime -lt $LastSourceTime) {
+    $state = 'stale'
+    $label = '已过期'
+  }
+  $text = Read-WorkloopText $summaryPath
+  $excerpt = ''
+  if ($text) {
+    $lines = @($text -split "`r?`n" | Where-Object {
+      $line = $_.Trim()
+      $line -and
+        $line -notmatch '^#' -and
+        $line -notmatch '^- Pair:' -and
+        $line -notmatch '^- 项目:' -and
+        $line -notmatch '^- 生成时间:' -and
+        $line -notmatch '^- 分析方式:'
+    })
+    if ($lines.Count -gt 0) {
+      $excerpt = ($lines | Select-Object -First 4) -join "`n"
+      if ($excerpt.Length -gt 260) { $excerpt = $excerpt.Substring(0, 260) + '...' }
+    }
+  }
+  [pscustomobject]@{
+    State = $state
+    Label = $label
+    Path = $summaryPath
+    HtmlPath = $htmlPath
+    Excerpt = $excerpt
+  }
+}
+
+function Get-WorkloopPrimaryState {
+  param(
+    [bool]$UnreadReply,
+    [bool]$UnreadInbox,
+    [bool]$ReportReady,
+    $GoalJson,
+    $RunnerStatus,
+    [string]$SummaryState,
+    [int]$HistoryCount
+  )
+
+  if ($RunnerStatus -and $RunnerStatus.status -eq 'failed') {
+    return [pscustomobject]@{
+      Priority = 10
+      State = 'failed'
+      Label = '执行异常'
+      Action = '查看状态'
+      Detail = 'CC runner 失败或状态过期，需要先看错误。'
+    }
+  }
+  if ($GoalJson -and $GoalJson.status -eq 'stopped') {
+    return [pscustomobject]@{
+      Priority = 20
+      State = 'blocked_user'
+      Label = '需要你介入'
+      Action = '查看总结'
+      Detail = if ($GoalJson.stopReason) { [string]$GoalJson.stopReason } else { 'Workloop 已停止，需要人工判断下一步。' }
+    }
+  }
+  if ($RunnerStatus -and $RunnerStatus.status -in @('queued','started','running')) {
+    return [pscustomobject]@{
+      Priority = 30
+      State = 'running'
+      Label = '正在运行'
+      Action = '查看状态'
+      Detail = 'Claude Code 正在执行或终端已启动。'
+    }
+  }
+  if ($ReportReady) {
+    return [pscustomobject]@{
+      Priority = 40
+      State = 'report_ready'
+      Label = '待 Codex 审核'
+      Action = '送审'
+      Detail = 'cc-report.md 已就绪且新于 codex-reply.md。'
+    }
+  }
+  if ($UnreadReply) {
+    return [pscustomobject]@{
+      Priority = 50
+      State = 'reply_unread'
+      Label = '待 CC 执行裁决'
+      Action = '继续'
+      Detail = '有未读 Codex 裁决。'
+    }
+  }
+  if ($UnreadInbox) {
+    return [pscustomobject]@{
+      Priority = 60
+      State = 'inbox_unread'
+      Label = '待 CC 执行任务'
+      Action = '继续'
+      Detail = '有未读任务。'
+    }
+  }
+  if ($SummaryState -in @('missing','stale') -and $HistoryCount -gt 0) {
+    return [pscustomobject]@{
+      Priority = 75
+      State = 'summary_stale'
+      Label = '建议看总结'
+      Action = '查看总结'
+      Detail = '已有历史轮次，但总结不存在或已过期。'
+    }
+  }
+  if ($GoalJson -and $GoalJson.status -eq 'completed') {
+    return [pscustomobject]@{
+      Priority = 90
+      State = 'completed'
+      Label = '已完成'
+      Action = '查看总结'
+      Detail = '目标已完成，可复盘或归档。'
+    }
+  }
+  return [pscustomobject]@{
+    Priority = 100
+    State = 'idle'
+    Label = '空闲'
+    Action = '规划任务'
+    Detail = '当前没有待处理消息。'
+  }
+}
+
 function Get-WorkloopPairRow {
   param([string]$ProjectRoot, [string]$PairDir)
 
@@ -217,6 +356,9 @@ function Get-WorkloopPairRow {
     Sort-Object -Descending |
     Select-Object -First 1
   $health = Get-WorkloopHealth -UnreadReply $unreadReply -UnreadInbox $unreadInbox -ReportReady $reportReady -GoalJson $goalJson -LastTime $lastTime -HistoryCount $historyCount
+  $summaryInfo = Get-WorkloopSummaryInfo -PairDir $PairDir -LastSourceTime $lastTime
+  $primary = Get-WorkloopPrimaryState -UnreadReply $unreadReply -UnreadInbox $unreadInbox -ReportReady $reportReady -GoalJson $goalJson -RunnerStatus $runnerStatus -SummaryState $summaryInfo.State -HistoryCount $historyCount
+  $focusText = if ($summaryInfo.Excerpt) { $summaryInfo.Excerpt } elseif ($reply) { Get-WorkloopExcerpt $replyPath 260 } elseif ($report) { Get-WorkloopExcerpt $reportPath 260 } elseif (Read-WorkloopText $inboxPath) { Get-WorkloopExcerpt $inboxPath 260 } else { $primary.Detail }
 
   [pscustomobject]@{
     ProjectRoot = $ProjectRoot
@@ -236,6 +378,16 @@ function Get-WorkloopPairRow {
     HealthLevel = $health.Level
     HealthLabel = $health.Label
     HealthIssues = @($health.Issues)
+    Priority = $primary.Priority
+    PrimaryState = $primary.State
+    PrimaryLabel = $primary.Label
+    PrimaryAction = $primary.Action
+    PrimaryDetail = $primary.Detail
+    FocusText = $focusText
+    SummaryState = $summaryInfo.State
+    SummaryLabel = $summaryInfo.Label
+    SummaryPath = $summaryInfo.Path
+    SummaryHtmlPath = $summaryInfo.HtmlPath
     LastUpdated = if ($lastTime) { $lastTime.ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
     HistoryCount = $historyCount
     CcRunnerStatus = $runnerStatusText
@@ -321,30 +473,25 @@ if ($ControlBaseUrl) {
 }
 
 $cards = [System.Text.StringBuilder]::new()
-foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
+$sortedRows = @($rows | Sort-Object Priority, ProjectName, PairId)
+foreach ($row in $sortedRows) {
   $roundText = if ($row.Round) { "$($row.Round) / $($row.MaxRounds)" } else { '-' }
   $command = "/workloop $($row.PairId)"
   $psCommand = "powershell -NoProfile -ExecutionPolicy Bypass -File `"`$env:USERPROFILE\.ai-tools\bin\ai-workloop.ps1`" `"$($row.PairId)`""
-  [void]$cards.AppendLine("<article class='pair-card status-$([regex]::Replace($row.StatusClass, '[^A-Za-z0-9_-]', '-')) health-$([regex]::Replace($row.HealthLevel, '[^A-Za-z0-9_-]', '-'))'>")
-  [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.Status)</span></div>")
-  [void]$cards.AppendLine("<dl class='meta'>")
-  [void]$cards.AppendLine("<div><dt>目标</dt><dd>$(Encode-WorkloopHtml $row.Goal)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>轮次</dt><dd>$(Encode-WorkloopHtml $roundText)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>最新裁决</dt><dd>$(Encode-WorkloopHtml $row.LastDecision)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>历史轮次</dt><dd>$(Encode-WorkloopHtml $row.HistoryCount)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>CC 会话</dt><dd><code>$(Encode-WorkloopHtml $row.CcSessionId)</code></dd></div>")
-  [void]$cards.AppendLine("<div><dt>Runner 状态</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerStatus) $(Encode-WorkloopHtml $row.CcRunnerUpdatedAt)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>最后更新</dt><dd>$(Encode-WorkloopHtml $row.LastUpdated)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>Pair 目录</dt><dd><code>$(Encode-WorkloopHtml $row.PairDir)</code></dd></div>")
-  [void]$cards.AppendLine("</dl>")
-  [void]$cards.AppendLine("<section class='runner-preview'><h3>CC 执行预览</h3><dl>")
-  [void]$cards.AppendLine("<div><dt>恢复会话</dt><dd><code>$(Encode-WorkloopHtml $row.CcSessionId)</code></dd></div>")
-  [void]$cards.AppendLine("<div><dt>读取来源</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerSource)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>任务字符数</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerSourceChars)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>历史轮数</dt><dd>$(Encode-WorkloopHtml $row.HistoryCount)</dd></div>")
-  [void]$cards.AppendLine("<div><dt>预算上限</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerBudget)</dd></div>")
+  [void]$cards.AppendLine("<article class='pair-card state-$([regex]::Replace($row.PrimaryState, '[^A-Za-z0-9_-]', '-')) health-$([regex]::Replace($row.HealthLevel, '[^A-Za-z0-9_-]', '-'))'>")
+  [void]$cards.AppendLine("<div class='pair-head'><div><h2>$(Encode-WorkloopHtml $row.PairId)</h2><p>$(Encode-WorkloopHtml $row.ProjectName)</p></div><span class='badge'>$(Encode-WorkloopHtml $row.PrimaryLabel)</span></div>")
+  [void]$cards.AppendLine("<section class='pair-focus'><dl>")
+  [void]$cards.AppendLine("<div><dt>目标</dt><dd>$(Encode-WorkloopHtml $(if ($row.Goal) { $row.Goal } elseif ($row.Task) { $row.Task } else { '未设置' }))</dd></div>")
+  [void]$cards.AppendLine("<div><dt>状态说明</dt><dd>$(Encode-WorkloopHtml $row.PrimaryDetail)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>当前结论</dt><dd>$(Encode-WorkloopHtml $row.FocusText)</dd></div>")
   [void]$cards.AppendLine("</dl></section>")
-  [void]$cards.AppendLine("<section class='actions' aria-label='操作辅助'>")
+  [void]$cards.AppendLine("<dl class='compact-meta'>")
+  [void]$cards.AppendLine("<div><dt>轮次</dt><dd>$(Encode-WorkloopHtml $roundText)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>最新裁决</dt><dd>$(Encode-WorkloopHtml $(if ($row.LastDecision) { $row.LastDecision } else { '-' }))</dd></div>")
+  [void]$cards.AppendLine("<div><dt>总结</dt><dd>$(Encode-WorkloopHtml $row.SummaryLabel)</dd></div>")
+  [void]$cards.AppendLine("<div><dt>最后更新</dt><dd>$(Encode-WorkloopHtml $(if ($row.LastUpdated) { $row.LastUpdated } else { '-' }))</dd></div>")
+  [void]$cards.AppendLine("</dl>")
+  [void]$cards.AppendLine("<section class='actions primary-actions' aria-label='主要操作'>")
   if ($controlPrefix) {
     $projectArg = Encode-WorkloopUrl $row.ProjectRoot
     $pairArg = Encode-WorkloopUrl $row.PairId
@@ -353,18 +500,36 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     $reportPathArg = Encode-WorkloopUrl $row.ReportPath
     $replyPathArg = Encode-WorkloopUrl $row.ReplyPath
     $historyPathArg = Encode-WorkloopUrl $row.HistoryDir
+    if ($row.PrimaryState -in @('report_ready','reply_unread','inbox_unread','running','failed','blocked_user')) {
+      [void]$cards.AppendLine("<button type='button' class='danger-action main-action' data-confirm='按状态机继续：可能送 Codex 裁决，或调用 Claude CLI 执行未读任务/裁决。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")' data-status-url='$(Encode-WorkloopHtml "$controlPrefix/status/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>$(Encode-WorkloopHtml $row.PrimaryAction)</button>")
+    } elseif ($row.PrimaryState -eq 'idle') {
+      [void]$cards.AppendLine("<button type='button' class='main-action' data-plan-task='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-goal='$(Encode-WorkloopHtml $row.Goal)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/plan-task?projectRoot=$projectArg&pair=$pairArg")'>规划任务</button>")
+    }
+    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc&cache=1")'>查看总结</button>")
+    if ($row.PrimaryState -eq 'summary_stale') {
+      [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='将调用 Claude Code 重新分析当前项目和 pair 数据，可能消耗 Claude Code 额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc&force=1")'>重新生成总结</button>")
+    }
+    [void]$cards.AppendLine("</section>")
+    [void]$cards.AppendLine("<details class='debug-actions'><summary>详情 / 更多操作</summary>")
+    [void]$cards.AppendLine("<dl class='meta'>")
+    [void]$cards.AppendLine("<div><dt>原始状态</dt><dd>$(Encode-WorkloopHtml $row.Status)</dd></div>")
+    [void]$cards.AppendLine("<div><dt>历史轮次</dt><dd>$(Encode-WorkloopHtml $row.HistoryCount)</dd></div>")
+    [void]$cards.AppendLine("<div><dt>CC 会话</dt><dd><code>$(Encode-WorkloopHtml $row.CcSessionId)</code></dd></div>")
+    [void]$cards.AppendLine("<div><dt>Runner 状态</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerStatus) $(Encode-WorkloopHtml $row.CcRunnerUpdatedAt)</dd></div>")
+    [void]$cards.AppendLine("<div><dt>读取来源</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerSource)</dd></div>")
+    [void]$cards.AppendLine("<div><dt>任务字符数</dt><dd>$(Encode-WorkloopHtml $row.CcRunnerSourceChars)</dd></div>")
+    [void]$cards.AppendLine("<div><dt>Pair 目录</dt><dd><code>$(Encode-WorkloopHtml $row.PairDir)</code></dd></div>")
+    [void]$cards.AppendLine("</dl>")
+    [void]$cards.AppendLine("<div class='actions'>")
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='执行 /workloop 可能调用 Codex 并消耗额度。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/workloop?projectRoot=$projectArg&pair=$pairArg")'>执行 /workloop</button>")
-    [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='按状态机继续：可能送 Codex 裁决，或调用 Claude CLI 执行未读任务/裁决。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")' data-status-url='$(Encode-WorkloopHtml "$controlPrefix/status/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>继续（自动路由）</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$pairPathArg")'>打开 Pair</button>")
     if (Test-Path -LiteralPath $row.ReportPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$reportPathArg")'>打开报告</button>") }
     if (Test-Path -LiteralPath $row.ReplyPath) { [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/open?path=$replyPathArg")'>打开裁决</button>") }
-    [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc&cache=1")'>查看总结</button>")
     [void]$cards.AppendLine("<button type='button' data-plan-task='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-goal='$(Encode-WorkloopHtml $row.Goal)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/plan-task?projectRoot=$projectArg&pair=$pairArg")'>让 Codex 规划任务</button>")
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/codex-terminal?projectRoot=$projectArg&pair=$pairArg")'>打开 Codex 终端</button>")
     [void]$cards.AppendLine("<button type='button' data-rebind-codex='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-codex?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 Codex</button>")
     [void]$cards.AppendLine("<button type='button' data-rebind-cc='true' data-project='$(Encode-WorkloopHtml $row.ProjectRoot)' data-pair='$(Encode-WorkloopHtml $row.PairId)' data-url='$(Encode-WorkloopHtml "$controlPrefix/action/rebind-cc?projectRoot=$projectArg&pair=$pairArg")'>绑定/重绑 CC</button>")
     [void]$cards.AppendLine("<button type='button' class='danger-action' data-confirm='归档 Pair 会把目录移动到 .ai-relay/archived-pairs，不会删除数据。确认归档？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/archive-pair?projectRoot=$projectArg&pair=$pairArg")' data-refresh='true'>归档 Pair</button>")
-    [void]$cards.AppendLine("<details class='debug-actions'><summary>更多 / 调试</summary><div class='actions'>")
     [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $command)'>复制 /workloop</button>")
     [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $psCommand)'>复制 PowerShell</button>")
     [void]$cards.AppendLine("<button type='button' data-copy='$(Encode-WorkloopHtml $row.PairDir)'>复制 Pair 路径</button>")
@@ -377,7 +542,6 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     [void]$cards.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=local&force=1")'>重新生成本地摘要</button>")
     [void]$cards.AppendLine("</div></details>")
   }
-  [void]$cards.AppendLine("</section>")
   [void]$cards.AppendLine("<section class='health-box'><h3>健康提示：$(Encode-WorkloopHtml $row.HealthLabel)</h3>")
   if ($row.HealthIssues.Count -gt 0) {
     [void]$cards.AppendLine("<ul>")
@@ -389,22 +553,45 @@ foreach ($row in ($rows | Sort-Object ProjectName, PairId)) {
     [void]$cards.AppendLine("<p>暂无需要处理的事项。</p>")
   }
   [void]$cards.AppendLine("</section>")
-  [void]$cards.AppendLine("<section class='excerpt'><h3>下一步命令</h3><pre>$(Encode-WorkloopHtml $command)</pre></section>")
-  if ($row.InboxExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新任务</h3><pre>$(Encode-WorkloopHtml $row.InboxExcerpt)</pre></section>") }
-  if ($row.ReportExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新报告</h3><pre>$(Encode-WorkloopHtml $row.ReportExcerpt)</pre></section>") }
-  if ($row.ReplyExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新裁决</h3><pre>$(Encode-WorkloopHtml $row.ReplyExcerpt)</pre></section>") }
+  if ($row.PrimaryState -notin @('completed','idle') -and $row.ReplyExcerpt) { [void]$cards.AppendLine("<section class='excerpt'><h3>最新裁决</h3><pre>$(Encode-WorkloopHtml $row.ReplyExcerpt)</pre></section>") }
   [void]$cards.AppendLine("</article>")
 }
 
 $summary = [System.Text.StringBuilder]::new()
 [void]$summary.AppendLine("<div class='summary-item'><strong>$($rows.Count)</strong><span>Pair 总数</span></div>")
 [void]$summary.AppendLine("<div class='summary-item'><strong>$($resolvedProjects.Count)</strong><span>项目总数</span></div>")
-$actionCount = @($rows | Where-Object { $_.HealthLevel -eq 'action' }).Count
-$watchCount = @($rows | Where-Object { $_.HealthLevel -eq 'watch' }).Count
+$actionCount = @($rows | Where-Object { $_.Priority -le 70 }).Count
+$watchCount = @($rows | Where-Object { $_.Priority -gt 70 -and $_.HealthLevel -eq 'watch' }).Count
 [void]$summary.AppendLine("<div class='summary-item action'><strong>$actionCount</strong><span>需要处理</span></div>")
 [void]$summary.AppendLine("<div class='summary-item watch'><strong>$watchCount</strong><span>需要关注</span></div>")
 foreach ($group in $statusCounts) {
   [void]$summary.AppendLine("<div class='summary-item'><strong>$($group.Count)</strong><span>$(Encode-WorkloopHtml $group.Name)</span></div>")
+}
+
+$actionBoard = [System.Text.StringBuilder]::new()
+$actionRows = @($sortedRows | Where-Object { $_.Priority -le 70 } | Select-Object -First 8)
+if ($actionRows.Count -gt 0) {
+  [void]$actionBoard.AppendLine("<section class='action-board'><div class='section-head'><h2>需要你处理</h2><span>$($actionRows.Count)</span></div>")
+  foreach ($row in $actionRows) {
+    $projectArg = Encode-WorkloopUrl $row.ProjectRoot
+    $pairArg = Encode-WorkloopUrl $row.PairId
+    [void]$actionBoard.AppendLine("<article class='action-row state-$([regex]::Replace($row.PrimaryState, '[^A-Za-z0-9_-]', '-'))'>")
+    [void]$actionBoard.AppendLine("<div><strong>$(Encode-WorkloopHtml $row.PairId)</strong><span>$(Encode-WorkloopHtml $row.ProjectName)</span></div>")
+    [void]$actionBoard.AppendLine("<p><b>$(Encode-WorkloopHtml $row.PrimaryLabel)</b>：$(Encode-WorkloopHtml $row.PrimaryDetail)</p>")
+    [void]$actionBoard.AppendLine("<p class='muted'>$(Encode-WorkloopHtml $row.FocusText)</p>")
+    if ($controlPrefix) {
+      [void]$actionBoard.AppendLine("<div class='actions compact-actions'>")
+      if ($row.PrimaryState -in @('report_ready','reply_unread','inbox_unread','running','failed','blocked_user')) {
+        [void]$actionBoard.AppendLine("<button type='button' class='danger-action' data-confirm='按状态机继续：可能送 Codex 裁决，或调用 Claude CLI 执行未读任务/裁决。确认继续？' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/cc-runner?projectRoot=$projectArg&pair=$pairArg")' data-status-url='$(Encode-WorkloopHtml "$controlPrefix/status/cc-runner?projectRoot=$projectArg&pair=$pairArg")'>$(Encode-WorkloopHtml $row.PrimaryAction)</button>")
+      }
+      [void]$actionBoard.AppendLine("<button type='button' data-post='$(Encode-WorkloopHtml "$controlPrefix/action/summary?projectRoot=$projectArg&pair=$pairArg&analyzer=cc&cache=1")'>查看总结</button>")
+      [void]$actionBoard.AppendLine("</div>")
+    }
+    [void]$actionBoard.AppendLine("</article>")
+  }
+  [void]$actionBoard.AppendLine("</section>")
+} else {
+  [void]$actionBoard.AppendLine("<section class='action-board empty-board'><div class='section-head'><h2>需要你处理</h2><span>0</span></div><p>当前没有必须介入的 pair。</p></section>")
 }
 
 if ($rows.Count -eq 0) {
@@ -472,6 +659,16 @@ $html = @"
     .summary-item { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
     .summary-item strong { display:block; font-size:24px; margin-bottom:4px; }
     .summary-item span { color:var(--muted); font-size:13px; }
+    .action-board { margin:0 0 22px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; }
+    .section-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+    .section-head h2 { margin:0; font-size:18px; }
+    .section-head span { min-width:30px; text-align:center; border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); }
+    .action-row { display:grid; grid-template-columns:minmax(140px,220px) 1fr auto; gap:12px; align-items:start; border-top:1px solid var(--line); padding:12px 0; }
+    .action-row:first-of-type { border-top:0; padding-top:0; }
+    .action-row strong { display:block; font-size:15px; }
+    .action-row span, .muted { color:var(--muted); font-size:12px; }
+    .action-row p { margin:0; font-size:13px; overflow-wrap:anywhere; }
+    .empty-board p { margin:0; color:var(--muted); }
     .projects { margin:0 0 22px; padding:14px 18px; background:#fff; border:1px solid var(--line); border-radius:8px; }
     .projects h2 { font-size:15px; margin:0 0 10px; }
     .projects ul { margin:0; padding-left:18px; color:var(--muted); }
@@ -484,20 +681,21 @@ $html = @"
     .create-panel p { margin:10px 0 0; color:var(--muted); font-size:12px; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:16px; }
     .pair-card { background:var(--card); border:1px solid var(--line); border-left:5px solid var(--muted); border-radius:8px; padding:16px; }
-    .status-reply { border-left-color:var(--blue); }
-    .status-report { border-left-color:var(--warn); }
-    .status-inbox { border-left-color:var(--accent); }
-    .status-running { border-left-color:var(--accent); }
-    .status-stopped { border-left-color:var(--danger); }
-    .status-completed { border-left-color:#5f7d38; }
+    .state-failed, .state-blocked_user { border-left-color:var(--danger); }
+    .state-report_ready, .state-summary_stale { border-left-color:var(--warn); }
+    .state-reply_unread, .state-inbox_unread { border-left-color:var(--blue); }
+    .state-running { border-left-color:var(--accent); }
+    .state-completed { border-left-color:#5f7d38; }
     .health-action { box-shadow:0 0 0 1px rgba(161,92,0,.18); }
     .health-watch { box-shadow:0 0 0 1px rgba(45,95,145,.14); }
     .pair-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
     .pair-head h2 { margin:0; font-size:20px; }
     .pair-head p { margin:4px 0 0; color:var(--muted); font-size:13px; }
     .badge { white-space:nowrap; border:1px solid var(--line); border-radius:999px; padding:4px 9px; font-size:12px; background:#f9faf8; }
-    .meta { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; margin:0 0 12px; }
-    .meta div { min-width:0; }
+    .pair-focus { border:1px solid var(--line); border-radius:8px; background:#fbfcfa; padding:12px; margin-bottom:12px; }
+    .pair-focus dl { display:grid; gap:10px; margin:0; }
+    .compact-meta, .meta { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; margin:0 0 12px; }
+    .compact-meta div, .meta div { min-width:0; }
     dt { color:var(--muted); font-size:12px; margin-bottom:2px; }
     dd { margin:0; font-size:13px; overflow-wrap:anywhere; }
     code { font-family: Consolas, monospace; font-size:12px; }
@@ -506,6 +704,9 @@ $html = @"
     .actions button:hover, .actions a:hover { border-color:var(--accent); color:var(--accent); }
     .actions button.copied { background:#e7f2ed; border-color:var(--accent); color:var(--accent); }
     .actions .danger-action { border-color:#d6b07b; background:#fff8ed; }
+    .primary-actions { margin:10px 0 12px; }
+    .actions .main-action { border-color:var(--accent); background:#e7f2ed; color:var(--accent); font-weight:600; }
+    .compact-actions { margin:0; justify-content:flex-end; min-width:190px; }
     .debug-actions { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; width:100%; }
     .debug-actions summary { cursor:pointer; color:var(--muted); font-size:12px; }
     .debug-actions .actions { margin:10px 0 0; }
@@ -523,6 +724,8 @@ $html = @"
     footer { color:var(--muted); font-size:12px; padding:0 36px 30px; }
     @media (max-width: 900px) {
       .create-panel form { grid-template-columns:1fr; }
+      .action-row { grid-template-columns:1fr; }
+      .compact-actions { justify-content:flex-start; }
     }
   </style>
 </head>
@@ -535,6 +738,7 @@ $html = @"
     <section class="summary">
       $($summary.ToString())
     </section>
+    $($actionBoard.ToString())
     <section class="projects">
       <h2>扫描项目</h2>
       <ul>$projectList</ul>
