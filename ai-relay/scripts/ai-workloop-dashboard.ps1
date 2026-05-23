@@ -576,9 +576,9 @@ if ($actionRows.Count -gt 0) {
     $projectArg = Encode-WorkloopUrl $row.ProjectRoot
     $pairArg = Encode-WorkloopUrl $row.PairId
     [void]$actionBoard.AppendLine("<article class='action-row state-$([regex]::Replace($row.PrimaryState, '[^A-Za-z0-9_-]', '-'))'>")
-    [void]$actionBoard.AppendLine("<div><strong>$(Encode-WorkloopHtml $row.PairId)</strong><span>$(Encode-WorkloopHtml $row.ProjectName)</span></div>")
-    [void]$actionBoard.AppendLine("<p><b>$(Encode-WorkloopHtml $row.PrimaryLabel)</b>：$(Encode-WorkloopHtml $row.PrimaryDetail)</p>")
-    [void]$actionBoard.AppendLine("<p class='muted'>$(Encode-WorkloopHtml $row.FocusText)</p>")
+    [void]$actionBoard.AppendLine("<div class='action-pair'><strong>$(Encode-WorkloopHtml $row.PairId)</strong><span>$(Encode-WorkloopHtml $row.ProjectName)</span></div>")
+    [void]$actionBoard.AppendLine("<div class='action-status'><b>$(Encode-WorkloopHtml $row.PrimaryLabel)</b><span>$(Encode-WorkloopHtml $row.PrimaryDetail)</span></div>")
+    [void]$actionBoard.AppendLine("<p class='action-summary'>$(Encode-WorkloopHtml $row.FocusText)</p>")
     if ($controlPrefix) {
       [void]$actionBoard.AppendLine("<div class='actions compact-actions'>")
       if ($row.PrimaryState -in @('report_ready','reply_unread','inbox_unread','running','failed','blocked_user')) {
@@ -663,11 +663,13 @@ $html = @"
     .section-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
     .section-head h2 { margin:0; font-size:18px; }
     .section-head span { min-width:30px; text-align:center; border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); }
-    .action-row { display:grid; grid-template-columns:minmax(140px,220px) 1fr auto; gap:12px; align-items:start; border-top:1px solid var(--line); padding:12px 0; }
+    .action-row { display:grid; grid-template-columns:minmax(160px,220px) minmax(160px,220px) minmax(320px,1fr) auto; gap:14px; align-items:start; border-top:1px solid var(--line); padding:12px 0; }
     .action-row:first-of-type { border-top:0; padding-top:0; }
-    .action-row strong { display:block; font-size:15px; }
-    .action-row span, .muted { color:var(--muted); font-size:12px; }
-    .action-row p { margin:0; font-size:13px; overflow-wrap:anywhere; }
+    .action-pair strong { display:block; font-size:15px; }
+    .action-pair span, .muted { color:var(--muted); font-size:12px; }
+    .action-status b { display:block; font-size:13px; margin-bottom:4px; }
+    .action-status span { display:block; color:var(--muted); font-size:12px; line-height:1.45; }
+    .action-summary { margin:0; font-size:13px; line-height:1.5; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     .empty-board p { margin:0; color:var(--muted); }
     .projects { margin:0 0 22px; padding:14px 18px; background:#fff; border:1px solid var(--line); border-radius:8px; }
     .projects h2 { font-size:15px; margin:0 0 10px; }
@@ -706,7 +708,7 @@ $html = @"
     .actions .danger-action { border-color:#d6b07b; background:#fff8ed; }
     .primary-actions { margin:10px 0 12px; }
     .actions .main-action { border-color:var(--accent); background:#e7f2ed; color:var(--accent); font-weight:600; }
-    .compact-actions { margin:0; justify-content:flex-end; min-width:190px; }
+    .compact-actions { margin:0; justify-content:flex-end; min-width:190px; max-width:230px; }
     .debug-actions { border-top:1px solid var(--line); margin-top:10px; padding-top:10px; width:100%; }
     .debug-actions summary { cursor:pointer; color:var(--muted); font-size:12px; }
     .debug-actions .actions { margin:10px 0 0; }
