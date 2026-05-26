@@ -172,10 +172,6 @@ function Convert-StreamJsonLineToText {
 
 $pairJson = Read-AiRelayPairJson $pairDir
 $ccSessionId = [string]$pairJson.ccSessionId
-if ([string]::IsNullOrWhiteSpace($ccSessionId)) {
-  Write-CcRunnerStatus -Status 'failed' -Message 'pair.json does not contain ccSessionId.' -ExitCode 1
-  throw "pair.json does not contain ccSessionId. Re-bind from Claude Code with ai-relay-bind-cc.ps1 -Pair $pairId -CcSessionId <claude-session-id> -Force, then bind Codex again."
-}
 
 $sourcePath = if ($Source -eq 'reply') { Join-Path $pairDir 'codex-reply.md' } else { Join-Path $pairDir 'cc-inbox.md' }
 $sourceText = Read-AiRelayTextFile $sourcePath
@@ -212,17 +208,18 @@ if (-not $claude) {
 
 $args = @(
   '--print',
-  '--resume', $ccSessionId,
   '--permission-mode', $PermissionMode,
   '--verbose',
   '--output-format', 'stream-json',
   '--include-partial-messages',
   $prompt
 )
+if (-not [string]::IsNullOrWhiteSpace($ccSessionId)) {
+  $args = @('--print', '--resume', $ccSessionId) + $args[1..($args.Count - 1)]
+}
 if ($MaxBudgetUsd -ne $null) {
   $args = @(
     '--print',
-    '--resume', $ccSessionId,
     '--permission-mode', $PermissionMode,
     '--max-budget-usd', ([string]$MaxBudgetUsd),
     '--verbose',
@@ -230,6 +227,9 @@ if ($MaxBudgetUsd -ne $null) {
     '--include-partial-messages',
     $prompt
   )
+  if (-not [string]::IsNullOrWhiteSpace($ccSessionId)) {
+    $args = @('--print', '--resume', $ccSessionId) + $args[1..($args.Count - 1)]
+  }
 }
 
 Write-Output "AI_WORKLOOP_CC_RUNNER_PAIR=$pairId"
@@ -241,9 +241,11 @@ if ($DryRun) {
   Write-CcRunnerStatus -Status 'dry-run' -Message 'Dry run completed.'
   Write-Output "AI_WORKLOOP_CC_RUNNER_DRYRUN=1"
   if ($MaxBudgetUsd -ne $null) {
-    Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --verbose --output-format stream-json --include-partial-messages <prompt>"
+    $resumeText = if ([string]::IsNullOrWhiteSpace($ccSessionId)) { '' } else { ' --resume <ccSessionId>' }
+    Write-Output "claude --print$resumeText --permission-mode $PermissionMode --max-budget-usd $MaxBudgetUsd --verbose --output-format stream-json --include-partial-messages <prompt>"
   } else {
-    Write-Output "claude --print --resume <ccSessionId> --permission-mode $PermissionMode --verbose --output-format stream-json --include-partial-messages <prompt>"
+    $resumeText = if ([string]::IsNullOrWhiteSpace($ccSessionId)) { '' } else { ' --resume <ccSessionId>' }
+    Write-Output "claude --print$resumeText --permission-mode $PermissionMode --verbose --output-format stream-json --include-partial-messages <prompt>"
   }
   exit 0
 }
@@ -274,6 +276,7 @@ $streamPath
     $displayLine = Convert-StreamJsonLineToText -Line $line
     if (-not [string]::IsNullOrWhiteSpace($displayLine)) {
       Add-Content -LiteralPath $outPath -Value $displayLine -Encoding utf8
+      Write-Output $displayLine
       [void]$outputBuffer.Add($displayLine)
     }
   }
@@ -289,6 +292,8 @@ $streamPath
 }
 
 Add-AiRelayLog -PairDir $pairDir -Event 'cc-runner-completed' -Detail "Output written to $outPath"
+$readPath = if ($Source -eq 'reply') { Join-Path $pairDir 'codex-reply.read.md' } else { Join-Path $pairDir 'cc-inbox.read.md' }
+Set-Content -LiteralPath $readPath -Value $sourceText -Encoding utf8
 Write-CcRunnerStatus -Status 'completed' -Message "Claude Code runner completed. Output written to $outPath"
 Write-Output "AI_WORKLOOP_CC_RUNNER_STATUS=COMPLETED"
 Write-Output (Read-AiRelayTextFile $outPath)

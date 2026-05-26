@@ -1,7 +1,7 @@
 ﻿param(
   [string]$Pair,
   [string]$Goal,
-  [int]$MaxRounds = 5,
+  [int]$MaxRounds = 10,
   [ValidateSet('start','status','stop','summary')][string]$Mode = 'start',
   [string]$Reason = ''
 )
@@ -70,6 +70,24 @@ function Test-GoalDone {
   return $false
 }
 
+function New-GoalMaxRoundsStopReason {
+  param($State, [string]$Decision, [string]$NextInstruction)
+  $round = if ($State.round -ne $null) { [int]$State.round } else { 0 }
+  $maxRounds = if ($State.maxRounds -ne $null) { [int]$State.maxRounds } else { 10 }
+  $next = if ([string]::IsNullOrWhiteSpace($NextInstruction)) { '没有明确下一步，但目标也没有被判定完成。' } else { $NextInstruction.Trim() }
+  if ($next.Length -gt 500) { $next = $next.Substring(0, 500) + '...' }
+  @"
+已达到最大轮次 $round/$maxRounds，Workloop 停止并等待用户介入。
+
+可能卡住的原因：
+- Codex 没有确认目标完成，或仍持续给出下一步。
+- 最后验收判断：$Decision
+- 最后下一步摘要：$next
+
+建议：人工查看最新报告和裁决，确认是否接受当前结果；如果不接受，请把目标拆小或指定更窄的下一轮目标。
+"@.Trim()
+}
+
 $projectRoot = Get-AiRelayProjectRoot
 $pairId = Get-AiRelayPairId -ProjectRoot $projectRoot -Pair $Pair
 Assert-AiRelayPairName $pairId
@@ -118,7 +136,7 @@ $Goal
 
 ## Stop Conditions
 - Codex accepts/completes the goal.
-- Max rounds reached: $MaxRounds.
+- Max rounds reached: $MaxRounds. 达到最大轮次后必须停止等待用户介入，并在报告/状态里说明为什么卡住。
 - Codex says no next step is needed.
 - Codex reports conflict risk that requires user decision.
 - Validation is impossible or unsafe.
@@ -179,7 +197,7 @@ $Goal
       $state.stopReason = 'Codex accepted/completed the goal.'
     } elseif ([int]$state.round -ge [int]$state.maxRounds) {
       $state.status = 'stopped'
-      $state.stopReason = 'Max rounds reached.'
+      $state.stopReason = New-GoalMaxRoundsStopReason -State $state -Decision $decision -NextInstruction $next
     } else {
       $state.status = 'running'
     }

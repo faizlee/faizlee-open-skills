@@ -19,7 +19,7 @@ function Read-RelayFile {
 
 function Encode-Html {
   param([string]$Text)
-  [System.Net.WebUtility]::HtmlEncode($Text)
+  Encode-AiRelayHtml $Text
 }
 
 function Get-Decision {
@@ -93,7 +93,7 @@ foreach ($dir in $roundDirs) {
   $needsRework = Get-NeedsRework $reply
   $hasMojibake = ($allText -match '\?\?\?')
   $hasVerification = ($report -match '验证|verification|test|pnpm|passed|failed|typecheck')
-  $files = Get-Matches $allText '([A-Za-z0-9_\-./\\\[\]]+\.(tsx|ts|js|jsx|json|md|ps1|txt))'
+  $files = Get-Matches $allText '([A-Za-z0-9_\-./\\\[\]]+\.(tsx|jsx|json|yaml|yml|ps1|txt|md|ts|js))'
   $errors = Get-Matches $allText '(TypeError|ReferenceError|SyntaxError|failed|失败|错误|乱码|补证据|证据不足|返工|不接受|部分接受)'
   $commands = Get-Matches $allText '(pnpm\s+[A-Za-z0-9:_\-]+|npm\s+[A-Za-z0-9:_\-]+|git\s+[A-Za-z0-9:_\-]+|ai-relay-[A-Za-z0-9:_\-]+\.ps1)'
 
@@ -275,6 +275,67 @@ if ($Format -eq 'md' -or $Format -eq 'both') {
   [System.IO.File]::WriteAllText($mdPath, $mdText, $encoding)
 }
 if ($Format -eq 'html' -or $Format -eq 'both') {
+  function New-ReviewListHtml {
+    param($Items, [string]$EmptyText)
+    if (-not $Items -or @($Items).Count -eq 0) { return "<p class=""muted"">$(Encode-Html $EmptyText)</p>" }
+    $builder = [System.Text.StringBuilder]::new()
+    [void]$builder.AppendLine('<ul class="list">')
+    foreach ($item in $Items) { [void]$builder.AppendLine("<li>$(Encode-Html ([string]$item))</li>") }
+    [void]$builder.AppendLine('</ul>')
+    return $builder.ToString()
+  }
+
+  $signalsHtml = New-ReviewListHtml -Items $signals -EmptyText '未发现明显低效循环信号。'
+  $hotFilesHtml = [System.Text.StringBuilder]::new()
+  if ($hotFiles) {
+    [void]$hotFilesHtml.AppendLine('<ul class="list hot-list">')
+    foreach ($item in $hotFiles) {
+      $fileUri = ConvertTo-AiRelayFileUri -ProjectRoot $projectRoot -Path ([string]$item.Key)
+      $filePart = if ($fileUri) {
+        "<a href=""$(Encode-Html $fileUri)""><code>$(Encode-Html ([string]$item.Key))</code></a><small>可打开本地文件</small>"
+      } else {
+        "<code>$(Encode-Html ([string]$item.Key))</code><small>未在当前项目中找到可打开路径</small>"
+      }
+      [void]$hotFilesHtml.AppendLine("<li><span>$filePart</span><strong>$(Encode-Html ([string]$item.Value)) 次</strong></li>")
+    }
+    [void]$hotFilesHtml.AppendLine('</ul>')
+  } else {
+    [void]$hotFilesHtml.AppendLine('<p class="muted">未发现文件路径。</p>')
+  }
+  $hotErrorsHtml = [System.Text.StringBuilder]::new()
+  if ($hotErrors) {
+    [void]$hotErrorsHtml.AppendLine('<ul class="list hot-list">')
+    foreach ($item in $hotErrors) {
+      [void]$hotErrorsHtml.AppendLine("<li><code>$(Encode-Html ([string]$item.Key))</code><strong>$(Encode-Html ([string]$item.Value)) 次</strong></li>")
+    }
+    [void]$hotErrorsHtml.AppendLine('</ul>')
+  } else {
+    [void]$hotErrorsHtml.AppendLine('<p class="muted">未发现明显问题关键词。</p>')
+  }
+  $hotCommandsHtml = [System.Text.StringBuilder]::new()
+  if ($hotCommands) {
+    [void]$hotCommandsHtml.AppendLine('<ul class="list hot-list">')
+    foreach ($item in $hotCommands) {
+      [void]$hotCommandsHtml.AppendLine("<li><code>$(Encode-Html ([string]$item.Key))</code><strong>$(Encode-Html ([string]$item.Value)) 次</strong></li>")
+    }
+    [void]$hotCommandsHtml.AppendLine('</ul>')
+  } else {
+    [void]$hotCommandsHtml.AppendLine('<p class="muted">未发现明确命令。</p>')
+  }
+  $timelineHtml = [System.Text.StringBuilder]::new()
+  foreach ($round in $rounds) {
+    $tone = if ($round.decision -eq '不接受' -or $round.needsRework) { 'bad' } elseif ($round.decision -eq '部分接受' -or -not $round.hasVerification) { 'warn' } else { 'good' }
+    [void]$timelineHtml.AppendLine("<article class=""round $tone"">")
+    [void]$timelineHtml.AppendLine("<div class=""round-head""><strong>$(Encode-Html $round.id)</strong><span>$(Encode-Html $round.decision)</span></div>")
+    [void]$timelineHtml.AppendLine("<dl>")
+    [void]$timelineHtml.AppendLine("<dt>时间</dt><dd>$(Encode-Html $round.createdAt)</dd>")
+    [void]$timelineHtml.AppendLine("<dt>返工</dt><dd>$(Encode-Html ([string]$round.needsRework))</dd>")
+    [void]$timelineHtml.AppendLine("<dt>验证</dt><dd>$(Encode-Html ([string]$round.hasVerification))</dd>")
+    [void]$timelineHtml.AppendLine("<dt>乱码</dt><dd>$(Encode-Html ([string]$round.hasMojibake))</dd>")
+    [void]$timelineHtml.AppendLine("</dl>")
+    [void]$timelineHtml.AppendLine("<details><summary>查看摘要</summary><h4>Codex 指令</h4><pre>$(Encode-Html $round.inboxSummary)</pre><h4>CC 汇报</h4><pre>$(Encode-Html $round.reportSummary)</pre><h4>Codex 回复</h4><pre>$(Encode-Html $round.replySummary)</pre></details>")
+    [void]$timelineHtml.AppendLine('</article>')
+  }
   $html = @"
 <!doctype html>
 <html lang="zh-CN">
@@ -282,18 +343,78 @@ if ($Format -eq 'html' -or $Format -eq 'both') {
   <meta charset="utf-8">
   <title>Agent Workloop 工作复盘报告 - $pairId</title>
   <style>
-    body { font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #f6f8fa; color: #1f2328; line-height: 1.55; }
-    main { max-width: 1120px; margin: 0 auto; min-height: 100vh; background: white; padding: 32px 28px 56px; }
+    body { font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif; margin: 0; background: #f4f2ed; color: #1f2328; line-height: 1.55; }
+    main { max-width: 1180px; margin: 0 auto; min-height: 100vh; padding: 32px 28px 56px; }
     h1 { margin: 0 0 8px; }
-    h2 { border-top: 1px solid #d0d7de; padding-top: 22px; margin-top: 30px; }
+    h2 { margin: 0 0 14px; font-size: 20px; }
+    section { background:#fff; border:1px solid #d8ddd8; border-radius:8px; padding:18px; margin:16px 0; }
     pre, blockquote { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; }
     code { background: #f6f8fa; padding: 2px 5px; border-radius: 4px; }
-    .summary { background: #ddf4ff; border: 1px solid #54aeef; border-radius: 6px; padding: 12px 14px; }
+    .meta, .muted { color:#65717d; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+    .metric { border:1px solid #d8ddd8; border-radius:8px; padding:12px; background:#fbfcfa; }
+    .metric strong { display:block; font-size:24px; }
+    .metric span { color:#65717d; font-size:13px; }
+    .list { margin:0; padding-left:20px; }
+    .hot-list { list-style:none; padding:0; display:grid; gap:8px; }
+    .hot-list li { display:flex; justify-content:space-between; gap:14px; border-bottom:1px solid #edf0eb; padding-bottom:8px; }
+    .hot-list small { display:block; color:#65717d; }
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .round { border-left:4px solid #8a927f; border-radius:8px; padding:12px; background:#fbfcfa; margin:10px 0; }
+    .round.good { border-left-color:#176b5d; }
+    .round.warn { border-left-color:#d08a2f; }
+    .round.bad { border-left-color:#b76a6a; }
+    .round-head { display:flex; justify-content:space-between; gap:10px; }
+    .round dl { display:grid; grid-template-columns:80px 1fr; gap:6px 10px; }
+    .round dt { color:#65717d; }
+    .round dd { margin:0; }
+    @media (max-width: 900px) { .two-col { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
 <main>
-<pre>$(Encode-Html $mdText)</pre>
+  <header>
+    <h1>Agent Workloop 工作复盘报告</h1>
+    <p class="meta">Pair <code>$(Encode-Html $pairId)</code> · 项目 <code>$(Encode-Html $projectRoot)</code> · 分析轮数 $totalRounds</p>
+  </header>
+  <section>
+    <h2>总览</h2>
+    <div class="metrics">
+      <div class="metric"><strong>$partialOrRejected</strong><span>部分接受 / 不接受</span></div>
+      <div class="metric"><strong>$reworkCount</strong><span>返工轮数</span></div>
+      <div class="metric"><strong>$mojibakeCount</strong><span>乱码轮数</span></div>
+      <div class="metric"><strong>$missingVerificationCount</strong><span>缺少验证</span></div>
+    </div>
+    <p><strong>建议：</strong>$(Encode-Html $recommendation)</p>
+  </section>
+  <section>
+    <h2>低效循环信号</h2>
+    $signalsHtml
+  </section>
+  <section>
+    <h2>时间线</h2>
+    $($timelineHtml.ToString())
+  </section>
+  <section class="two-col">
+    <div>
+      <h2>文件热点</h2>
+      $($hotFilesHtml.ToString())
+    </div>
+    <div>
+      <h2>问题热点</h2>
+      $($hotErrorsHtml.ToString())
+    </div>
+  </section>
+  <section>
+    <h2>命令 / 验证线索</h2>
+    $($hotCommandsHtml.ToString())
+  </section>
+  <section>
+    <details>
+      <summary>查看原始 Markdown</summary>
+      <pre>$(Encode-Html $mdText)</pre>
+    </details>
+  </section>
 </main>
 </body>
 </html>

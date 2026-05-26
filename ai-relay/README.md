@@ -4,6 +4,10 @@ Agent collaboration loop for Claude Code + Codex, with a lightweight file relay 
 
 For full documentation, see [README.zh-CN.md](./README.zh-CN.md).
 
+For maintainers and future agent sessions, start from
+[docs/AGENT_CONTEXT.md](./docs/AGENT_CONTEXT.md), then open the focused docs under
+[docs/](./docs/).
+
 ## What It Does
 
 - Installs once under `$HOME\.ai-tools`.
@@ -48,7 +52,7 @@ ai-relay-codex.ps1 -Pair <pair> -Message "<message>"
 ai-relay-cc.ps1 -Pair <pair> -Mode report
 ai-relay-export.ps1 -Pair <pair> -Format both
 ai-relay-review.ps1 -Pair <pair> -Format both
-ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
+ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 10
 ```
 
 Claude Code slash commands:

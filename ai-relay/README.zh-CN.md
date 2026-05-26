@@ -2,6 +2,14 @@
 
 面向本机 coding agent 的协作闭环工具。当前核心场景是 Claude Code 执行、Codex 审核裁决，底层通过项目内文件做轻量 relay。
 
+如果是维护本工具或在新 Codex / Claude Code 对话中恢复上下文，先读：
+
+```text
+docs/AGENT_CONTEXT.md
+```
+
+然后按需读 `docs/architecture.md`、`docs/state-machine.md`、`docs/dashboard.md`、`docs/decisions.md`、`docs/known-issues.md`。
+
 ## 适用场景
 
 - 你希望一个项目里同时存在多个 Codex / Claude Code pair。
@@ -110,7 +118,7 @@ ai-relay-list.ps1
 ai-relay-open.ps1 -Pair <pair>
 ai-relay-export.ps1 -Pair <pair> -Format both
 ai-relay-review.ps1 -Pair <pair> -Format both
-ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 5
+ai-relay-goal.ps1 -Pair <pair> -Goal "<goal>" -MaxRounds 10
 ```
 
 Claude Code slash command：
@@ -308,7 +316,7 @@ Agent Workloop 是基于 relay 的多轮协作闭环：
 ```powershell
 ai-workloop.ps1 logicmap
 ai-workloop.ps1 logicmap 完成治理地图第二模块
-ai-relay-goal.ps1 -Pair logicmap -Goal "完成治理地图第二模块" -MaxRounds 5
+ai-relay-goal.ps1 -Pair logicmap -Goal "完成治理地图第二模块" -MaxRounds 10
 ```
 
 `/workloop <pair>` 不带 goal 时，会执行状态同步能力：检查未读 Codex 裁决、未读任务、等待裁决或空闲状态。如果 `cc-report.md` 已写好且新于 `codex-reply.md`，会直接调用 Codex 送审，不需要用户切到 Codex 读取。

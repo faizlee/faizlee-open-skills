@@ -124,10 +124,50 @@ function Get-AiRelayNextInstruction {
 
 function Test-AiRelayGoalDone {
   param([string]$Reply, [string]$Decision, [string]$NextInstruction)
-  if ($Decision -match '^接受' -and ($Reply -match '本轮完成|完成|不需要返工|不需要继续|无需继续')) { return $true }
-  if ([string]::IsNullOrWhiteSpace($NextInstruction) -and $Decision -match '^接受') { return $true }
-  if ($NextInstruction -match '无|不需要|无需|停止|完成') { return $true }
-  return $false
+  if ($Decision -notmatch '^接受') { return $false }
+  if ([string]::IsNullOrWhiteSpace($NextInstruction)) { return $true }
+
+  $next = ($NextInstruction -replace '\s+', ' ').Trim()
+  $terminalSignal = $next -match '无下一轮|无需下一轮|不需要下一轮|没有下一轮|不需要继续|无需继续|无需操作|无需执行|目标已完成|当前目标已完成|本目标已完成|本 pair 已完成|pair 已完成|停止|结束|关闭当前\s*pair|归档|等待用户|保持.*结束|当前 pair 已完成|不要再运行|不要继续'
+  if (-not $terminalSignal) { return $false }
+
+  $hasExecutableInstruction = $next -match '请执行|执行|修改|清理|提交|纳入|完成后|返回压缩报告|运行|检查|修复|创建|更新|添加|增加|删除|写入|生成|验证|继续|推进|git\s+add|git\s+commit'
+  if ($hasExecutableInstruction -and $next -notmatch '不要继续|不需要继续|无需继续|无需执行|无需操作|不要再运行|停止|结束|等待.*提交|等待.*调度|保持.*结束') { return $false }
+
+  return $true
+}
+
+function New-AiRelayMaxRoundsStopReason {
+  param(
+    [string]$PairDir,
+    [int]$Round,
+    [int]$MaxRounds,
+    [string]$Decision,
+    [string]$NextInstruction,
+    [string]$HistoryId
+  )
+  $reportPath = Join-Path $PairDir 'cc-report.md'
+  $replyPath = Join-Path $PairDir 'codex-reply.md'
+  $reportAt = if (Test-Path -LiteralPath $reportPath) { (Get-Item -LiteralPath $reportPath).LastWriteTime.ToString('o') } else { '无报告文件' }
+  $replyAt = if (Test-Path -LiteralPath $replyPath) { (Get-Item -LiteralPath $replyPath).LastWriteTime.ToString('o') } else { '无裁决文件' }
+  $next = if ([string]::IsNullOrWhiteSpace($NextInstruction)) { 'Codex 没有给出明确下一步，但也没有让目标自然收口。' } else { $NextInstruction.Trim() }
+  if ($next.Length -gt 500) { $next = $next.Substring(0, 500) + '...' }
+  @"
+已达到最大轮次 $Round/$MaxRounds，Workloop 停止并等待用户介入。
+
+可能卡住的原因：
+- 多轮后 Codex 仍未给出明确完成结论，或仍在持续要求下一步。
+- 最后验收判断：$Decision
+- 最后下一步摘要：$next
+- 最新历史轮次：$HistoryId
+- 最新报告时间：$reportAt
+- 最新裁决时间：$replyAt
+
+建议：
+1. 查看最新 cc-report.md / codex-reply.md，判断是否可以人工接受当前结果。
+2. 如果目标过大，拆成更小的新 pair 或重新设置更窄目标。
+3. 如果同一问题反复出现，下一轮只指定一个明确验证点或一个文件范围。
+"@.Trim()
 }
 
 function Update-AiRelayGoalAfterReply {
@@ -142,28 +182,35 @@ function Update-AiRelayGoalAfterReply {
 
   $goal = Get-Content -LiteralPath $goalPath -Raw -Encoding utf8 | ConvertFrom-Json
   if (-not $goal) { return }
-  if ($goal.status -notin @('running','started')) { return }
+  if ($goal.status -notin @('running','started','planned')) { return }
 
   $decision = Get-AiRelayReplyDecision $Reply
   $next = Get-AiRelayNextInstruction $Reply
+  $workloopDecision = Get-AiRelayWorkloopDecision -Text $Reply -FallbackText $next
+  if (-not [string]::IsNullOrWhiteSpace($workloopDecision.NextTask)) {
+    $next = [string]$workloopDecision.NextTask
+  }
   $round = 0
   if ($goal.round -ne $null) { $round = [int]$goal.round }
   $round++
 
-  $maxRounds = 5
+  $maxRounds = 10
   if ($goal.maxRounds -ne $null) { $maxRounds = [int]$goal.maxRounds }
 
   $status = 'running'
   $stopReason = ''
-  if (Test-AiRelayGoalDone -Reply $Reply -Decision $decision -NextInstruction $next) {
+  if ($workloopDecision.Decision -eq 'completed') {
     $status = 'completed'
-    $stopReason = 'Codex accepted/completed the goal.'
+    $stopReason = $workloopDecision.Reason
   } elseif ($round -ge $maxRounds) {
     $status = 'stopped'
-    $stopReason = 'Max rounds reached.'
-  } elseif ($Reply -match '冲突风险.*需要.*用户|人工裁决|需要用户') {
+    $stopReason = New-AiRelayMaxRoundsStopReason -PairDir $PairDir -Round $round -MaxRounds $maxRounds -Decision $decision -NextInstruction $next -HistoryId $HistoryId
+  } elseif ($workloopDecision.Decision -in @('needs_user','blocked')) {
     $status = 'stopped'
-    $stopReason = 'Codex requested user decision or reported conflict risk.'
+    $stopReason = $workloopDecision.Reason
+  } elseif ($workloopDecision.Decision -ne 'continue') {
+    $status = 'stopped'
+    $stopReason = 'Codex did not provide a structured continue decision; stopped for user review.'
   }
   $startedAt = [string]$goal.startedAt
   if ($goal.startedAt -is [datetime]) {
@@ -184,6 +231,7 @@ function Update-AiRelayGoalAfterReply {
     lastHistoryId = $HistoryId
   }
   Write-AiRelayJson $updated $goalPath
+  Add-AiRelayLog -PairDir $PairDir -Event 'workloop-decision' -Detail "source=$($workloopDecision.Source)`ndecision=$($workloopDecision.Decision)`nshouldWriteInbox=$($workloopDecision.ShouldWriteInbox)`nreason=$($workloopDecision.Reason)"
 
   $goalDir = Join-Path $PairDir 'goal'
   New-Item -ItemType Directory -Force -Path $goalDir | Out-Null
@@ -241,6 +289,26 @@ $report
 
 请只按以下格式输出，不要要求 Claude Code 返回大段日志，不要索取完整项目代码。
 
+## Workloop Decision
+先输出一个 fenced JSON 代码块。只能使用以下四种 workloopDecision：
+- continue：还需要 Claude Code 执行 nextTask。
+- completed：目标已经完成，应该停止 pair。
+- needs_user：需要用户裁决或补充目标。
+- blocked：遇到阻塞，不能安全继续。
+
+JSON 格式必须是：
+```json
+{
+  "workloopDecision": "continue|completed|needs_user|blocked",
+  "shouldWriteInbox": true,
+  "reason": "一句话说明为什么",
+  "nextTask": "如果 continue，这里写给 Claude Code 的完整任务；否则留空或写停止原因"
+}
+```
+
+如果 workloopDecision 不是 continue，shouldWriteInbox 必须是 false。
+只有 continue 才允许给 Claude Code 下发新任务。
+
 ## 1. 验收判断
 接受 / 不接受 / 部分接受。
 
@@ -254,6 +322,7 @@ $report
 ## 4. 给 Claude Code 的下一轮指令
 写成可以直接交给 Claude Code 的任务指令。
 必须边界清晰、最小化、不要大范围重构。
+如果 workloopDecision 不是 continue，这一节只写“不下发新任务”。
 
 ## 5. 与其他 pair 的冲突风险
 判断当前任务是否可能和其他 pair 冲突。
