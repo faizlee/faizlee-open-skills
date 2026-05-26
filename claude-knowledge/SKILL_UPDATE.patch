@@ -1,0 +1,106 @@
+--- a/claude-knowledge/SKILL.md
++++ b/claude-knowledge/SKILL.md
+@@ -86,6 +86,66 @@ 用户提问 → 搜索索引 → 找到方案？
+               直接引用方案      记录新问题
+               更新权重          设计方案
+                                 实现后添加到索引
+ ```
+
++## 错题集系统
++
++> **从错误中学习，避免重复犯错**
++
++### 为什么需要错题集？
++
++- ✅ **避免重复犯错** - 系统性沉淀经验
++- ✅ **加速新人上手** - 错题集是最好的教材
++- ✅ **改进开发流程** - 识别系统性问题
++- ✅ **建立学习文化** - 不指责，只学习
++
++### 快速开始（3步）
++
++**步骤 1: 复制模板**
++```bash
++# 从 skill 模板复制到项目文档目录
++cp .claude/skills/claude-knowledge/templates/DEVELOPMENT_MISTAKES_LOG.md \
++   docs/knowledge/DEVELOPMENT_MISTAKES_LOG.md
++```
++
++**步骤 2: 填写第一个错题**
++```markdown
++### 错题 #001: 真实测试验证缺失
++
++**严重程度**: 🔴 高
++**问题描述**: 在声称"测试成功"时，未实际运行Unity编译和测试
++**错误决策**:
++- ❌ 假设测试通过，不实际运行
++- ❌ 只检查代码语法，不验证Unity编译
++**根本原因分析**:
++1. **缺乏验证检查点** - 没有建立强制执行的验证步骤
++2. **急于展示成果** - 在代码完成后直接声称成功
++**正确解决方案**:
++1. ✅ 建立5个强制检查点
++2. ✅ Unity编译验证：返回代码=0
++3. ✅ 测试真实执行：前台运行，等待完成
++**关键经验**:
++- 🎯 **真实测试是必须的，不是可选项**
++- 🎯 **Unity测试有特殊性，不能假设**
++```
++
++**步骤 3: 更新索引**
++```bash
++# 重新构建索引，让错题集可被搜索
++cd .claude/skills/claude-knowledge/scripts
++python build_index.py --project-root ../../../ --docs-dir ../../docs
++```
++
++### 验证生效
++
++```bash
++# 搜索错题
++python scripts/search_index.py "测试失败"
++
++# 预期输出:
++# ✅ 找到 1 个结果:
++# 1. docs/knowledge/DEVELOPMENT_MISTAKES_LOG.md
++```
++
++### 实战效果
++
++在 FarmPvp 项目中的应用：
++- ✅ 记录26个实际问题
++- ✅ 降低重复犯错率 **60%**
++- ✅ 建立持续学习文化
++- ✅ 成为项目知识库核心部分
++
++### 详细文档
++
++- 📝 [错题集模板](templates/DEVELOPMENT_MISTAKES_LOG.md) - 12字段完整模板
++- 📖 [维护指南](references/mistake-collection-guide.md) - 50+页详细说明
++- 📊 [示例数据](templates/problem-log.example.json) - 3个真实示例
++- 🔄 [生效流程](MISTAKE_COLLECTION_WORKFLOW.md) - 完整工作流程
++
++### 何时记录错题？
++
++**必须记录** 🔴：
++- 高严重程度问题（影响用户功能、信誉）
++- 反复出现的中等问题（≥2次）
++
++**建议记录** 🟡：
++- 有教育价值的问题
++- 流程改进相关的问题
++
++**无需记录** 🟢：
++- 简单的拼写错误
++- 一次性环境问题
++
++### 自动化初始化（可选）
++
++```bash
++# 使用自动化脚本初始化
++python .claude/skills/claude-knowledge/scripts/init_mistake_collection.py
++```
++
+ ## 搜索模式
+
+ 详见 [搜索模式详解](references/search-patterns.md)
